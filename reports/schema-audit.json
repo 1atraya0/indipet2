@@ -1,0 +1,3386 @@
+{
+  "generated_at": "2026-05-21T09:58:38.005Z",
+  "total_schema_tables": 49,
+  "total_portal_tables": 0,
+  "tables_only_in_schema": [
+    "attendance",
+    "co_ledger",
+    "delivery_zone",
+    "department_master",
+    "designation_master",
+    "employee_audit_log",
+    "employee_bank_history",
+    "employee_category_master",
+    "employee_documents",
+    "employee_exit_workflow",
+    "employee_finance",
+    "employee_master",
+    "employee_salary_history",
+    "employee_shift_preference",
+    "employee_skills",
+    "employee_transfer_history",
+    "fnf_settlement",
+    "gratuity_tracking",
+    "holiday_calendar",
+    "indipet_audit_log",
+    "indipet_module_records",
+    "indipet_realtime_events",
+    "leave_policy_master",
+    "leave_type_master",
+    "location_audit_log",
+    "location_onboarding_checklist",
+    "location_operating_hours",
+    "location_service_config",
+    "minimum_wage_master",
+    "parent_entity",
+    "payroll_compliance",
+    "payroll_components",
+    "payroll_deductions",
+    "payroll_employee_summary",
+    "payroll_period_master",
+    "payroll_run",
+    "policy_assignment",
+    "policy_variant",
+    "pt_slab_master",
+    "role_master",
+    "roster",
+    "roster_history",
+    "roster_slots",
+    "salary_structure_master",
+    "service_type_master",
+    "shift_policy_master",
+    "state_compliance_master",
+    "state_master",
+    "sub_location"
+  ],
+  "tables_only_in_portal": [],
+  "portal_sections": [],
+  "table_details": {
+    "attendance": {
+      "primary_key": [
+        "attendance_id"
+      ],
+      "column_count": 18,
+      "columns": [
+        {
+          "column": "attendance_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('attendance_attendance_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "attendance_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_slot_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "raw_check_in",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "raw_check_out",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "check_in_time",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "check_out_time",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "biometric_failure",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_weekly_off",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_holiday",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_on_leave",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "leave_type_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "worked_on_weekly_off",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "worked_on_holiday",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "final_status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "payable_units",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "leave_type_id",
+          "references_table": "leave_type_master",
+          "references_column": "leave_type_id"
+        },
+        {
+          "column": "roster_slot_id",
+          "references_table": "roster_slots",
+          "references_column": "slot_id"
+        },
+        {
+          "column": "roster_id",
+          "references_table": "roster",
+          "references_column": "roster_id"
+        }
+      ]
+    },
+    "co_ledger": {
+      "primary_key": [
+        "co_id"
+      ],
+      "column_count": 7,
+      "columns": [
+        {
+          "column": "co_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('co_ledger_co_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "source_attendance_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "credit_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "expiry_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "source_attendance_id",
+          "references_table": "attendance",
+          "references_column": "attendance_id"
+        }
+      ]
+    },
+    "delivery_zone": {
+      "primary_key": [
+        "zone_id"
+      ],
+      "column_count": 7,
+      "columns": [
+        {
+          "column": "zone_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('delivery_zone_zone_id_seq'::regclass)"
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "zone_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "zone_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "radius_km",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "delivery_time_minutes",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "fulfillment_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "department_master": {
+      "primary_key": [
+        "department_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "department_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('department_master_department_id_seq'::regclass)"
+        },
+        {
+          "column": "department_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "department_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "revenue_centre_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_revenue_generating",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "designation_master": {
+      "primary_key": [
+        "designation_id"
+      ],
+      "column_count": 9,
+      "columns": [
+        {
+          "column": "designation_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('designation_master_designation_id_seq'::regclass)"
+        },
+        {
+          "column": "designation_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "designation_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "department_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "grade_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "override_level",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_keyholder_eligible",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_salesperson_eligible",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "department_id",
+          "references_table": "department_master",
+          "references_column": "department_id"
+        }
+      ]
+    },
+    "employee_audit_log": {
+      "primary_key": [
+        "log_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "log_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_audit_log_log_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "action",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "old_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "new_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "changed_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_bank_history": {
+      "primary_key": [
+        "history_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "history_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_bank_history_history_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "bank_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "account_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_from",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_to",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_category_master": {
+      "primary_key": [
+        "category_code"
+      ],
+      "column_count": 4,
+      "columns": [
+        {
+          "column": "category_code",
+          "type": "character varying",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "category_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "description",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "employee_documents": {
+      "primary_key": [
+        "document_id"
+      ],
+      "column_count": 7,
+      "columns": [
+        {
+          "column": "document_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_documents_document_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "document_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "file_url",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "issue_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "expiry_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_mandatory",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_exit_workflow": {
+      "primary_key": [
+        "workflow_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "workflow_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_exit_workflow_workflow_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "exit_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "exit_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "noc_status",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_finance": {
+      "primary_key": [
+        "finance_id"
+      ],
+      "column_count": 10,
+      "columns": [
+        {
+          "column": "finance_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_finance_finance_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "bank_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "bank_branch",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "account_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "ifsc_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pan_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "uan_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pf_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "esi_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_master": {
+      "primary_key": [
+        "employee_id"
+      ],
+      "column_count": 26,
+      "columns": [
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_master_employee_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "employee_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "employment_subtype",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "first_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "last_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gender",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "department_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "designation_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "parent_entity_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "reporting_manager_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "employee_category",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "date_of_joining",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "original_doj",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_salesperson",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "login_id",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "role_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "default_shift_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "face_registered",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "shift_preference_mode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "date_of_exit",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "exit_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "reporting_manager_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "parent_entity_id",
+          "references_table": "parent_entity",
+          "references_column": "entity_id"
+        },
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        },
+        {
+          "column": "designation_id",
+          "references_table": "designation_master",
+          "references_column": "designation_id"
+        },
+        {
+          "column": "department_id",
+          "references_table": "department_master",
+          "references_column": "department_id"
+        },
+        {
+          "column": "default_shift_id",
+          "references_table": "shift_policy_master",
+          "references_column": "policy_id"
+        },
+        {
+          "column": "role_id",
+          "references_table": "role_master",
+          "references_column": "role_id"
+        }
+      ]
+    },
+    "employee_salary_history": {
+      "primary_key": [
+        "salary_history_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "salary_history_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_salary_history_salary_history_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "basic_salary",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gross_salary",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_from",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_to",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_shift_preference": {
+      "primary_key": [
+        "preference_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "preference_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_shift_preference_preference_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "preference_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "preference_detail",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_active",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_skills": {
+      "primary_key": [
+        "skill_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "skill_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_skills_skill_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "skill_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "certification",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "certified_on",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_transfer_history": {
+      "primary_key": [
+        "transfer_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "transfer_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_transfer_history_transfer_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "from_location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "to_location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "transfer_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "to_location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        },
+        {
+          "column": "from_location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "fnf_settlement": {
+      "primary_key": [
+        "settlement_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "settlement_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('fnf_settlement_settlement_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "last_working_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "leave_encashment",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gratuity_amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "final_payout",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "gratuity_tracking": {
+      "primary_key": [
+        "gratuity_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "gratuity_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('gratuity_tracking_gratuity_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "eligibility_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gratuity_amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "holiday_calendar": {
+      "primary_key": [
+        "holiday_id"
+      ],
+      "column_count": 8,
+      "columns": [
+        {
+          "column": "holiday_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('holiday_calendar_holiday_id_seq'::regclass)"
+        },
+        {
+          "column": "holiday_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "holiday_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "state_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_closed",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_eligible",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "calendar_year",
+          "type": "smallint",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        },
+        {
+          "column": "state_code",
+          "references_table": "state_master",
+          "references_column": "state_code"
+        }
+      ]
+    },
+    "indipet_audit_log": {
+      "primary_key": [
+        "id"
+      ],
+      "column_count": 7,
+      "columns": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "column": "role",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "actor",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "module",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "action",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "details",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "foreign_keys": []
+    },
+    "indipet_module_records": {
+      "primary_key": [
+        "id"
+      ],
+      "column_count": 12,
+      "columns": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "column": "module",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "role",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "title",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "slug",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "summary",
+          "type": "text",
+          "nullable": false,
+          "default": "''::text"
+        },
+        {
+          "column": "status",
+          "type": "text",
+          "nullable": false,
+          "default": "'draft'::text"
+        },
+        {
+          "column": "payload",
+          "type": "jsonb",
+          "nullable": false,
+          "default": "'{}'::jsonb"
+        },
+        {
+          "column": "created_by",
+          "type": "text",
+          "nullable": false,
+          "default": "''::text"
+        },
+        {
+          "column": "updated_by",
+          "type": "text",
+          "nullable": false,
+          "default": "''::text"
+        },
+        {
+          "column": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "column": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "foreign_keys": []
+    },
+    "indipet_realtime_events": {
+      "primary_key": [
+        "id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "id",
+          "type": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "column": "role",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "module",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "message",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "severity",
+          "type": "text",
+          "nullable": false,
+          "default": "'info'::text"
+        },
+        {
+          "column": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "foreign_keys": []
+    },
+    "leave_policy_master": {
+      "primary_key": [
+        "policy_id"
+      ],
+      "column_count": 16,
+      "columns": [
+        {
+          "column": "policy_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('leave_policy_master_policy_id_seq'::regclass)"
+        },
+        {
+          "column": "policy_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "policy_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "policy_year",
+          "type": "smallint",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_from",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_to",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "scope",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "calendar_source",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "approval_mode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "simultaneous_leave_block",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_credit_trigger",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_auto_credit",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_expiry_days",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_min_hours",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "version_number",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "leave_type_master": {
+      "primary_key": [
+        "leave_type_id"
+      ],
+      "column_count": 12,
+      "columns": [
+        {
+          "column": "leave_type_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('leave_type_master_leave_type_id_seq'::regclass)"
+        },
+        {
+          "column": "leave_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "leave_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_paid",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pay_percentage",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "accrual_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "max_days_per_year",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "carry_forward_allowed",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gender_restriction",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "requires_approval",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_lop",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "location_audit_log": {
+      "primary_key": [
+        "audit_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "audit_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('location_audit_log_audit_id_seq'::regclass)"
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "action",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "old_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "new_data",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "changed_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "location_onboarding_checklist": {
+      "primary_key": [
+        "checklist_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "checklist_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('location_onboarding_checklist_checklist_id_seq'::regclass)"
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "checklist_item",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "item_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_mandatory",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_completed",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "location_operating_hours": {
+      "primary_key": [
+        "hours_id"
+      ],
+      "column_count": 9,
+      "columns": [
+        {
+          "column": "hours_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('location_operating_hours_hours_id_seq'::regclass)"
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "day_of_week",
+          "type": "smallint",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_open",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "official_open_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "official_close_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "operational_open_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "operational_close_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "shift_policy_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "shift_policy_id",
+          "references_table": "shift_policy_master",
+          "references_column": "policy_id"
+        },
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "location_service_config": {
+      "primary_key": [
+        "config_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "config_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('location_service_config_config_id_seq'::regclass)"
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "service_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_active",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "activated_by",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        },
+        {
+          "column": "service_code",
+          "references_table": "service_type_master",
+          "references_column": "service_code"
+        },
+        {
+          "column": "activated_by",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "minimum_wage_master": {
+      "primary_key": [
+        "wage_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "wage_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('minimum_wage_master_wage_id_seq'::regclass)"
+        },
+        {
+          "column": "state_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "employee_category_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "wage_amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_from",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_category_code",
+          "references_table": "employee_category_master",
+          "references_column": "category_code"
+        },
+        {
+          "column": "state_code",
+          "references_table": "state_master",
+          "references_column": "state_code"
+        }
+      ]
+    },
+    "parent_entity": {
+      "primary_key": [
+        "entity_id"
+      ],
+      "column_count": 19,
+      "columns": [
+        {
+          "column": "entity_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('parent_entity_entity_id_seq'::regclass)"
+        },
+        {
+          "column": "entity_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "legal_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "entity_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gstin",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gst_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pan_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "cin_number",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "address_line1",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "address_line2",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "city",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pincode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "state",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "country",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "commission_on_products",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "commission_on_services",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "payroll_compliance": {
+      "primary_key": [
+        "compliance_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "compliance_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('payroll_compliance_compliance_id_seq'::regclass)"
+        },
+        {
+          "column": "payroll_run_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pf_employee",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pf_employer",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "esi_employee",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "esi_employer",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "payroll_run_id",
+          "references_table": "payroll_run",
+          "references_column": "payroll_run_id"
+        }
+      ]
+    },
+    "payroll_components": {
+      "primary_key": [
+        "component_id"
+      ],
+      "column_count": 4,
+      "columns": [
+        {
+          "column": "component_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('payroll_components_component_id_seq'::regclass)"
+        },
+        {
+          "column": "summary_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "component_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "summary_id",
+          "references_table": "payroll_employee_summary",
+          "references_column": "summary_id"
+        }
+      ]
+    },
+    "payroll_deductions": {
+      "primary_key": [
+        "deduction_id"
+      ],
+      "column_count": 4,
+      "columns": [
+        {
+          "column": "deduction_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('payroll_deductions_deduction_id_seq'::regclass)"
+        },
+        {
+          "column": "summary_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "deduction_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "summary_id",
+          "references_table": "payroll_employee_summary",
+          "references_column": "summary_id"
+        }
+      ]
+    },
+    "payroll_employee_summary": {
+      "primary_key": [
+        "summary_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "summary_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('payroll_employee_summary_summary_id_seq'::regclass)"
+        },
+        {
+          "column": "payroll_run_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gross_salary",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "deductions",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "net_salary",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "payroll_run_id",
+          "references_table": "payroll_run",
+          "references_column": "payroll_run_id"
+        }
+      ]
+    },
+    "payroll_period_master": {
+      "primary_key": [
+        "period_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "period_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('payroll_period_master_period_id_seq'::regclass)"
+        },
+        {
+          "column": "period_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "start_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "end_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "payroll_lock_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "payroll_run": {
+      "primary_key": [
+        "payroll_run_id"
+      ],
+      "column_count": 4,
+      "columns": [
+        {
+          "column": "payroll_run_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('payroll_run_payroll_run_id_seq'::regclass)"
+        },
+        {
+          "column": "period_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "run_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "period_id",
+          "references_table": "payroll_period_master",
+          "references_column": "period_id"
+        }
+      ]
+    },
+    "policy_assignment": {
+      "primary_key": [
+        "assignment_id"
+      ],
+      "column_count": 11,
+      "columns": [
+        {
+          "column": "assignment_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('policy_assignment_assignment_id_seq'::regclass)"
+        },
+        {
+          "column": "policy_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "variant_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "assignment_level",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "target_location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "target_department_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "target_designation_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "target_gender",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "target_employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "override_direction",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "override_value",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "target_location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        },
+        {
+          "column": "target_department_id",
+          "references_table": "department_master",
+          "references_column": "department_id"
+        },
+        {
+          "column": "target_employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "target_designation_id",
+          "references_table": "designation_master",
+          "references_column": "designation_id"
+        },
+        {
+          "column": "policy_id",
+          "references_table": "leave_policy_master",
+          "references_column": "policy_id"
+        },
+        {
+          "column": "variant_id",
+          "references_table": "policy_variant",
+          "references_column": "variant_id"
+        }
+      ]
+    },
+    "policy_variant": {
+      "primary_key": [
+        "variant_id"
+      ],
+      "column_count": 8,
+      "columns": [
+        {
+          "column": "variant_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('policy_variant_variant_id_seq'::regclass)"
+        },
+        {
+          "column": "policy_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "variant_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "variant_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "leave_entitlements",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_default",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "applicable_to",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "policy_id",
+          "references_table": "leave_policy_master",
+          "references_column": "policy_id"
+        }
+      ]
+    },
+    "pt_slab_master": {
+      "primary_key": [
+        "slab_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "slab_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('pt_slab_master_slab_id_seq'::regclass)"
+        },
+        {
+          "column": "state_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_from",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "min_salary",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "max_salary",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pt_amount",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "state_code",
+          "references_table": "state_master",
+          "references_column": "state_code"
+        }
+      ]
+    },
+    "role_master": {
+      "primary_key": [
+        "role_id"
+      ],
+      "column_count": 5,
+      "columns": [
+        {
+          "column": "role_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('role_master_role_id_seq'::regclass)"
+        },
+        {
+          "column": "role_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "role_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permissions",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "roster": {
+      "primary_key": [
+        "roster_id"
+      ],
+      "column_count": 14,
+      "columns": [
+        {
+          "column": "roster_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('roster_roster_id_seq'::regclass)"
+        },
+        {
+          "column": "roster_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "shift_policy_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_holiday",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_weekly_off",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "approved_leave_count",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "available_staff_count",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "scenario",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_open_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_close_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "version",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        },
+        {
+          "column": "shift_policy_id",
+          "references_table": "shift_policy_master",
+          "references_column": "policy_id"
+        }
+      ]
+    },
+    "roster_history": {
+      "primary_key": [
+        "history_id"
+      ],
+      "column_count": 7,
+      "columns": [
+        {
+          "column": "history_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('roster_history_history_id_seq'::regclass)"
+        },
+        {
+          "column": "roster_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_date",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "version",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "slots_snapshot",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "change_reason",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "roster_id",
+          "references_table": "roster",
+          "references_column": "roster_id"
+        },
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "roster_slots": {
+      "primary_key": [
+        "slot_id"
+      ],
+      "column_count": 11,
+      "columns": [
+        {
+          "column": "slot_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('roster_slots_slot_id_seq'::regclass)"
+        },
+        {
+          "column": "roster_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "slot_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "is_keyholder",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "slot_start",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "slot_end",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "preference_applied",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "preference_override",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "slot_status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "original_employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "original_employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "roster_id",
+          "references_table": "roster",
+          "references_column": "roster_id"
+        }
+      ]
+    },
+    "salary_structure_master": {
+      "primary_key": [
+        "structure_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "structure_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('salary_structure_master_structure_id_seq'::regclass)"
+        },
+        {
+          "column": "structure_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "grade_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "basic_percentage",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "hra_percentage",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "special_allowance_percentage",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "service_type_master": {
+      "primary_key": [
+        "service_code"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "service_code",
+          "type": "character varying",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "service_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "service_category",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "requires_staff",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "requires_booking",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "linked_department_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "shift_policy_master": {
+      "primary_key": [
+        "policy_id"
+      ],
+      "column_count": 28,
+      "columns": [
+        {
+          "column": "policy_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('shift_policy_master_policy_id_seq'::regclass)"
+        },
+        {
+          "column": "policy_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "policy_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "shift_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "coverage_mode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "shift_start_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "shift_end_time",
+          "type": "time without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "total_shift_hours",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "break_duration_minutes",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "net_work_hours",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "sanctioned_strength",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "max_leave_per_day",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "critical_store_flag",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "keyholder_required",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "primary_keyholder_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "backup_keyholder_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_auto_generate",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_cycle",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "weekly_off_pattern",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "weekly_off_day",
+          "type": "smallint",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "max_consecutive_days",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "override_authority",
+          "type": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "holiday_working_policy",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "co_credit_trigger",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "edit_lock_hours",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "roster_versioning",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "policy_status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "primary_keyholder_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "backup_keyholder_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        },
+        {
+          "column": "location_id",
+          "references_table": "sub_location",
+          "references_column": "location_id"
+        }
+      ]
+    },
+    "state_compliance_master": {
+      "primary_key": [
+        "compliance_id"
+      ],
+      "column_count": 6,
+      "columns": [
+        {
+          "column": "compliance_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('state_compliance_master_compliance_id_seq'::regclass)"
+        },
+        {
+          "column": "state_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "effective_from",
+          "type": "date",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pf_applicable",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "esi_applicable",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "gratuity_applicable",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "state_code",
+          "references_table": "state_master",
+          "references_column": "state_code"
+        }
+      ]
+    },
+    "state_master": {
+      "primary_key": [
+        "state_code"
+      ],
+      "column_count": 8,
+      "columns": [
+        {
+          "column": "state_code",
+          "type": "character varying",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "column": "state_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "country_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "created_by",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "created_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "modified_by",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "modified_at",
+          "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": []
+    },
+    "sub_location": {
+      "primary_key": [
+        "location_id"
+      ],
+      "column_count": 19,
+      "columns": [
+        {
+          "column": "location_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('sub_location_location_id_seq'::regclass)"
+        },
+        {
+          "column": "location_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "parent_entity_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_name",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "brand_flag",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "location_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "address_line1",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "city",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "pincode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "state",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "state_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "latitude",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "longitude",
+          "type": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "phone",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "email",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "cost_centre_code",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "area_manager_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "onboarding_status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "state_code",
+          "references_table": "state_master",
+          "references_column": "state_code"
+        },
+        {
+          "column": "parent_entity_id",
+          "references_table": "parent_entity",
+          "references_column": "entity_id"
+        },
+        {
+          "column": "area_manager_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    }
+  }
+}

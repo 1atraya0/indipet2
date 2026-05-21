@@ -1,0 +1,103 @@
+{
+  "generated_at": "2026-05-21T10:00:13.225Z",
+  "portal_sections": [
+    {
+      "title": "Organization Setup",
+      "tables": [
+        "state_master",
+        "parent_entity",
+        "sub_location",
+        "department_master",
+        "designation_master",
+        "role_master",
+        "service_type_master",
+        "employee_category_master"
+      ]
+    },
+    {
+      "title": "Employee Management",
+      "tables": [
+        "employee_master",
+        "employee_finance",
+        "employee_bank_history",
+        "employee_skills",
+        "employee_shift_preference",
+        "employee_transfer_history",
+        "employee_salary_history",
+        "employee_documents",
+        "employee_audit_log"
+      ]
+    },
+    {
+      "title": "Leave Management",
+      "tables": [
+        "holiday_calendar",
+        "leave_type_master",
+        "leave_policy_master",
+        "policy_variant",
+        "policy_assignment"
+      ]
+    },
+    {
+      "title": "Shift & Roster",
+      "tables": [
+        "shift_policy_master",
+        "roster",
+        "roster_slots",
+        "roster_history"
+      ]
+    },
+    {
+      "title": "Attendance & CO",
+      "tables": [
+        "attendance",
+        "co_ledger"
+      ]
+    },
+    {
+      "title": "Payroll & Compliance",
+      "tables": [
+        "salary_structure_master",
+        "pt_slab_master",
+        "minimum_wage_master",
+        "state_compliance_master",
+        "payroll_period_master",
+        "payroll_components",
+        "payroll_deductions",
+        "payroll_run",
+        "payroll_employee_summary",
+        "payroll_compliance"
+      ]
+    },
+    {
+      "title": "Exit & Settlement",
+      "tables": [
+        "employee_exit_workflow",
+        "gratuity_tracking",
+        "fnf_settlement"
+      ]
+    },
+    {
+      "title": "Location Operations",
+      "tables": [
+        "location_operating_hours",
+        "location_service_config",
+        "delivery_zone",
+        "location_onboarding_checklist"
+      ]
+    },
+    {
+      "title": "Audit & System Logs",
+      "tables": [
+        "indipet_audit_log",
+        "indipet_module_records",
+        "indipet_realtime_events",
+        "location_audit_log"
+      ]
+    }
+  ],
+  "total_schema_tables": 49,
+  "total_portal_tables": 49,
+  "tables_only_in_schema": [],
+  "tables_only_in_portal": []
+}

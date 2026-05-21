@@ -1,0 +1,1278 @@
+{
+  "generated_at": "2026-05-21T10:01:19.502Z",
+  "tables": {
+    "attendance": {
+      "column_count": 18,
+      "columns": [
+        "attendance_id",
+        "employee_id",
+        "attendance_date",
+        "roster_id",
+        "roster_slot_id",
+        "raw_check_in",
+        "raw_check_out",
+        "check_in_time",
+        "check_out_time",
+        "biometric_failure",
+        "is_weekly_off",
+        "is_holiday",
+        "is_on_leave",
+        "leave_type_id",
+        "worked_on_weekly_off",
+        "worked_on_holiday",
+        "final_status",
+        "payable_units"
+      ],
+      "create_shown": [
+        "employee_id",
+        "attendance_date",
+        "roster_id",
+        "roster_slot_id",
+        "raw_check_in",
+        "raw_check_out",
+        "check_in_time",
+        "check_out_time",
+        "biometric_failure",
+        "is_weekly_off",
+        "is_holiday",
+        "is_on_leave",
+        "leave_type_id",
+        "worked_on_weekly_off",
+        "worked_on_holiday",
+        "final_status",
+        "payable_units"
+      ],
+      "create_hidden": [
+        "attendance_id"
+      ]
+    },
+    "co_ledger": {
+      "column_count": 7,
+      "columns": [
+        "co_id",
+        "employee_id",
+        "co_type",
+        "source_attendance_id",
+        "credit_date",
+        "expiry_date",
+        "status"
+      ],
+      "create_shown": [
+        "employee_id",
+        "co_type",
+        "source_attendance_id",
+        "credit_date",
+        "expiry_date",
+        "status"
+      ],
+      "create_hidden": [
+        "co_id"
+      ]
+    },
+    "delivery_zone": {
+      "column_count": 7,
+      "columns": [
+        "zone_id",
+        "location_id",
+        "zone_code",
+        "zone_name",
+        "radius_km",
+        "delivery_time_minutes",
+        "fulfillment_type"
+      ],
+      "create_shown": [
+        "location_id",
+        "zone_code",
+        "zone_name",
+        "radius_km",
+        "delivery_time_minutes",
+        "fulfillment_type"
+      ],
+      "create_hidden": [
+        "zone_id"
+      ]
+    },
+    "department_master": {
+      "column_count": 6,
+      "columns": [
+        "department_id",
+        "department_code",
+        "department_name",
+        "revenue_centre_code",
+        "is_revenue_generating",
+        "status"
+      ],
+      "create_shown": [
+        "department_code",
+        "department_name",
+        "revenue_centre_code",
+        "is_revenue_generating",
+        "status"
+      ],
+      "create_hidden": [
+        "department_id"
+      ]
+    },
+    "designation_master": {
+      "column_count": 9,
+      "columns": [
+        "designation_id",
+        "designation_code",
+        "designation_name",
+        "department_id",
+        "grade_code",
+        "override_level",
+        "is_keyholder_eligible",
+        "is_salesperson_eligible",
+        "status"
+      ],
+      "create_shown": [
+        "designation_code",
+        "designation_name",
+        "department_id",
+        "grade_code",
+        "override_level",
+        "is_keyholder_eligible",
+        "is_salesperson_eligible",
+        "status"
+      ],
+      "create_hidden": [
+        "designation_id"
+      ]
+    },
+    "employee_audit_log": {
+      "column_count": 6,
+      "columns": [
+        "log_id",
+        "employee_id",
+        "action",
+        "old_data",
+        "new_data",
+        "changed_at"
+      ],
+      "create_shown": [
+        "employee_id",
+        "action",
+        "old_data",
+        "new_data",
+        "changed_at"
+      ],
+      "create_hidden": [
+        "log_id"
+      ]
+    },
+    "employee_bank_history": {
+      "column_count": 6,
+      "columns": [
+        "history_id",
+        "employee_id",
+        "bank_name",
+        "account_number",
+        "effective_from",
+        "effective_to"
+      ],
+      "create_shown": [
+        "employee_id",
+        "bank_name",
+        "account_number",
+        "effective_from",
+        "effective_to"
+      ],
+      "create_hidden": [
+        "history_id"
+      ]
+    },
+    "employee_category_master": {
+      "column_count": 4,
+      "columns": [
+        "category_code",
+        "category_name",
+        "description",
+        "status"
+      ],
+      "create_shown": [
+        "category_code",
+        "category_name",
+        "description",
+        "status"
+      ],
+      "create_hidden": []
+    },
+    "employee_documents": {
+      "column_count": 7,
+      "columns": [
+        "document_id",
+        "employee_id",
+        "document_type",
+        "file_url",
+        "issue_date",
+        "expiry_date",
+        "is_mandatory"
+      ],
+      "create_shown": [
+        "employee_id",
+        "document_type",
+        "file_url",
+        "issue_date",
+        "expiry_date",
+        "is_mandatory"
+      ],
+      "create_hidden": [
+        "document_id"
+      ]
+    },
+    "employee_exit_workflow": {
+      "column_count": 5,
+      "columns": [
+        "workflow_id",
+        "employee_id",
+        "exit_type",
+        "exit_date",
+        "noc_status"
+      ],
+      "create_shown": [
+        "employee_id",
+        "exit_type",
+        "exit_date",
+        "noc_status"
+      ],
+      "create_hidden": [
+        "workflow_id"
+      ]
+    },
+    "employee_finance": {
+      "column_count": 10,
+      "columns": [
+        "finance_id",
+        "employee_id",
+        "bank_name",
+        "bank_branch",
+        "account_number",
+        "ifsc_code",
+        "pan_number",
+        "uan_number",
+        "pf_number",
+        "esi_number"
+      ],
+      "create_shown": [
+        "employee_id",
+        "bank_name",
+        "bank_branch",
+        "account_number",
+        "ifsc_code",
+        "pan_number",
+        "uan_number",
+        "pf_number",
+        "esi_number"
+      ],
+      "create_hidden": [
+        "finance_id"
+      ]
+    },
+    "employee_master": {
+      "column_count": 26,
+      "columns": [
+        "employee_id",
+        "employee_code",
+        "employee_type",
+        "employment_subtype",
+        "first_name",
+        "last_name",
+        "phone",
+        "email",
+        "gender",
+        "department_id",
+        "designation_id",
+        "location_id",
+        "parent_entity_id",
+        "reporting_manager_id",
+        "employee_category",
+        "date_of_joining",
+        "original_doj",
+        "is_salesperson",
+        "login_id",
+        "role_id",
+        "default_shift_id",
+        "face_registered",
+        "shift_preference_mode",
+        "date_of_exit",
+        "exit_type",
+        "status"
+      ],
+      "create_shown": [
+        "employee_code",
+        "employee_type",
+        "employment_subtype",
+        "first_name",
+        "last_name",
+        "phone",
+        "email",
+        "gender",
+        "department_id",
+        "designation_id",
+        "location_id",
+        "parent_entity_id",
+        "reporting_manager_id",
+        "employee_category",
+        "date_of_joining",
+        "original_doj",
+        "is_salesperson",
+        "login_id",
+        "role_id",
+        "default_shift_id",
+        "face_registered",
+        "shift_preference_mode",
+        "date_of_exit",
+        "exit_type",
+        "status"
+      ],
+      "create_hidden": [
+        "employee_id"
+      ]
+    },
+    "employee_salary_history": {
+      "column_count": 6,
+      "columns": [
+        "salary_history_id",
+        "employee_id",
+        "basic_salary",
+        "gross_salary",
+        "effective_from",
+        "effective_to"
+      ],
+      "create_shown": [
+        "employee_id",
+        "basic_salary",
+        "gross_salary",
+        "effective_from",
+        "effective_to"
+      ],
+      "create_hidden": [
+        "salary_history_id"
+      ]
+    },
+    "employee_shift_preference": {
+      "column_count": 5,
+      "columns": [
+        "preference_id",
+        "employee_id",
+        "preference_type",
+        "preference_detail",
+        "is_active"
+      ],
+      "create_shown": [
+        "employee_id",
+        "preference_type",
+        "preference_detail",
+        "is_active"
+      ],
+      "create_hidden": [
+        "preference_id"
+      ]
+    },
+    "employee_skills": {
+      "column_count": 5,
+      "columns": [
+        "skill_id",
+        "employee_id",
+        "skill_name",
+        "certification",
+        "certified_on"
+      ],
+      "create_shown": [
+        "employee_id",
+        "skill_name",
+        "certification",
+        "certified_on"
+      ],
+      "create_hidden": [
+        "skill_id"
+      ]
+    },
+    "employee_transfer_history": {
+      "column_count": 5,
+      "columns": [
+        "transfer_id",
+        "employee_id",
+        "from_location_id",
+        "to_location_id",
+        "transfer_date"
+      ],
+      "create_shown": [
+        "employee_id",
+        "from_location_id",
+        "to_location_id",
+        "transfer_date"
+      ],
+      "create_hidden": [
+        "transfer_id"
+      ]
+    },
+    "fnf_settlement": {
+      "column_count": 6,
+      "columns": [
+        "settlement_id",
+        "employee_id",
+        "last_working_date",
+        "leave_encashment",
+        "gratuity_amount",
+        "final_payout"
+      ],
+      "create_shown": [
+        "employee_id",
+        "last_working_date",
+        "leave_encashment",
+        "gratuity_amount",
+        "final_payout"
+      ],
+      "create_hidden": [
+        "settlement_id"
+      ]
+    },
+    "gratuity_tracking": {
+      "column_count": 5,
+      "columns": [
+        "gratuity_id",
+        "employee_id",
+        "eligibility_date",
+        "gratuity_amount",
+        "status"
+      ],
+      "create_shown": [
+        "employee_id",
+        "eligibility_date",
+        "gratuity_amount",
+        "status"
+      ],
+      "create_hidden": [
+        "gratuity_id"
+      ]
+    },
+    "holiday_calendar": {
+      "column_count": 8,
+      "columns": [
+        "holiday_id",
+        "holiday_date",
+        "holiday_name",
+        "state_code",
+        "location_id",
+        "is_closed",
+        "co_eligible",
+        "calendar_year"
+      ],
+      "create_shown": [
+        "holiday_date",
+        "holiday_name",
+        "state_code",
+        "location_id",
+        "is_closed",
+        "co_eligible",
+        "calendar_year"
+      ],
+      "create_hidden": [
+        "holiday_id"
+      ]
+    },
+    "indipet_audit_log": {
+      "column_count": 7,
+      "columns": [
+        "id",
+        "role",
+        "actor",
+        "module",
+        "action",
+        "details",
+        "created_at"
+      ],
+      "create_shown": [
+        "id",
+        "role",
+        "actor",
+        "module",
+        "action",
+        "details",
+        "created_at"
+      ],
+      "create_hidden": []
+    },
+    "indipet_module_records": {
+      "column_count": 12,
+      "columns": [
+        "id",
+        "module",
+        "role",
+        "title",
+        "slug",
+        "summary",
+        "status",
+        "payload",
+        "created_by",
+        "updated_by",
+        "created_at",
+        "updated_at"
+      ],
+      "create_shown": [
+        "id",
+        "module",
+        "role",
+        "title",
+        "slug",
+        "summary",
+        "status",
+        "payload",
+        "created_by",
+        "updated_by",
+        "created_at",
+        "updated_at"
+      ],
+      "create_hidden": []
+    },
+    "indipet_realtime_events": {
+      "column_count": 6,
+      "columns": [
+        "id",
+        "role",
+        "module",
+        "message",
+        "severity",
+        "created_at"
+      ],
+      "create_shown": [
+        "id",
+        "role",
+        "module",
+        "message",
+        "severity",
+        "created_at"
+      ],
+      "create_hidden": []
+    },
+    "leave_policy_master": {
+      "column_count": 16,
+      "columns": [
+        "policy_id",
+        "policy_code",
+        "policy_name",
+        "policy_year",
+        "effective_from",
+        "effective_to",
+        "scope",
+        "calendar_source",
+        "approval_mode",
+        "simultaneous_leave_block",
+        "co_credit_trigger",
+        "co_auto_credit",
+        "co_expiry_days",
+        "co_min_hours",
+        "version_number",
+        "status"
+      ],
+      "create_shown": [
+        "policy_code",
+        "policy_name",
+        "policy_year",
+        "effective_from",
+        "effective_to",
+        "scope",
+        "calendar_source",
+        "approval_mode",
+        "simultaneous_leave_block",
+        "co_credit_trigger",
+        "co_auto_credit",
+        "co_expiry_days",
+        "co_min_hours",
+        "version_number",
+        "status"
+      ],
+      "create_hidden": [
+        "policy_id"
+      ]
+    },
+    "leave_type_master": {
+      "column_count": 12,
+      "columns": [
+        "leave_type_id",
+        "leave_code",
+        "leave_name",
+        "is_paid",
+        "pay_percentage",
+        "accrual_type",
+        "max_days_per_year",
+        "carry_forward_allowed",
+        "gender_restriction",
+        "requires_approval",
+        "is_lop",
+        "status"
+      ],
+      "create_shown": [
+        "leave_code",
+        "leave_name",
+        "is_paid",
+        "pay_percentage",
+        "accrual_type",
+        "max_days_per_year",
+        "carry_forward_allowed",
+        "gender_restriction",
+        "requires_approval",
+        "is_lop",
+        "status"
+      ],
+      "create_hidden": [
+        "leave_type_id"
+      ]
+    },
+    "location_audit_log": {
+      "column_count": 6,
+      "columns": [
+        "audit_id",
+        "location_id",
+        "action",
+        "old_data",
+        "new_data",
+        "changed_at"
+      ],
+      "create_shown": [
+        "location_id",
+        "action",
+        "old_data",
+        "new_data",
+        "changed_at"
+      ],
+      "create_hidden": [
+        "audit_id"
+      ]
+    },
+    "location_onboarding_checklist": {
+      "column_count": 6,
+      "columns": [
+        "checklist_id",
+        "location_id",
+        "checklist_item",
+        "item_code",
+        "is_mandatory",
+        "is_completed"
+      ],
+      "create_shown": [
+        "location_id",
+        "checklist_item",
+        "item_code",
+        "is_mandatory",
+        "is_completed"
+      ],
+      "create_hidden": [
+        "checklist_id"
+      ]
+    },
+    "location_operating_hours": {
+      "column_count": 9,
+      "columns": [
+        "hours_id",
+        "location_id",
+        "day_of_week",
+        "is_open",
+        "official_open_time",
+        "official_close_time",
+        "operational_open_time",
+        "operational_close_time",
+        "shift_policy_id"
+      ],
+      "create_shown": [
+        "location_id",
+        "day_of_week",
+        "is_open",
+        "official_open_time",
+        "official_close_time",
+        "operational_open_time",
+        "operational_close_time",
+        "shift_policy_id"
+      ],
+      "create_hidden": [
+        "hours_id"
+      ]
+    },
+    "location_service_config": {
+      "column_count": 5,
+      "columns": [
+        "config_id",
+        "location_id",
+        "service_code",
+        "is_active",
+        "activated_by"
+      ],
+      "create_shown": [
+        "location_id",
+        "service_code",
+        "is_active",
+        "activated_by"
+      ],
+      "create_hidden": [
+        "config_id"
+      ]
+    },
+    "minimum_wage_master": {
+      "column_count": 5,
+      "columns": [
+        "wage_id",
+        "state_code",
+        "employee_category_code",
+        "wage_amount",
+        "effective_from"
+      ],
+      "create_shown": [
+        "state_code",
+        "employee_category_code",
+        "wage_amount",
+        "effective_from"
+      ],
+      "create_hidden": [
+        "wage_id"
+      ]
+    },
+    "parent_entity": {
+      "column_count": 19,
+      "columns": [
+        "entity_id",
+        "entity_code",
+        "legal_name",
+        "entity_type",
+        "gstin",
+        "gst_type",
+        "pan_number",
+        "cin_number",
+        "phone",
+        "email",
+        "address_line1",
+        "address_line2",
+        "city",
+        "pincode",
+        "state",
+        "country",
+        "commission_on_products",
+        "commission_on_services",
+        "status"
+      ],
+      "create_shown": [
+        "entity_code",
+        "legal_name",
+        "entity_type",
+        "gstin",
+        "gst_type",
+        "pan_number",
+        "cin_number",
+        "phone",
+        "email",
+        "address_line1",
+        "address_line2",
+        "city",
+        "pincode",
+        "state",
+        "country",
+        "commission_on_products",
+        "commission_on_services",
+        "status"
+      ],
+      "create_hidden": [
+        "entity_id"
+      ]
+    },
+    "payroll_compliance": {
+      "column_count": 6,
+      "columns": [
+        "compliance_id",
+        "payroll_run_id",
+        "pf_employee",
+        "pf_employer",
+        "esi_employee",
+        "esi_employer"
+      ],
+      "create_shown": [
+        "payroll_run_id",
+        "pf_employee",
+        "pf_employer",
+        "esi_employee",
+        "esi_employer"
+      ],
+      "create_hidden": [
+        "compliance_id"
+      ]
+    },
+    "payroll_components": {
+      "column_count": 4,
+      "columns": [
+        "component_id",
+        "summary_id",
+        "component_type",
+        "amount"
+      ],
+      "create_shown": [
+        "summary_id",
+        "component_type",
+        "amount"
+      ],
+      "create_hidden": [
+        "component_id"
+      ]
+    },
+    "payroll_deductions": {
+      "column_count": 4,
+      "columns": [
+        "deduction_id",
+        "summary_id",
+        "deduction_type",
+        "amount"
+      ],
+      "create_shown": [
+        "summary_id",
+        "deduction_type",
+        "amount"
+      ],
+      "create_hidden": [
+        "deduction_id"
+      ]
+    },
+    "payroll_employee_summary": {
+      "column_count": 6,
+      "columns": [
+        "summary_id",
+        "payroll_run_id",
+        "employee_id",
+        "gross_salary",
+        "deductions",
+        "net_salary"
+      ],
+      "create_shown": [
+        "payroll_run_id",
+        "employee_id",
+        "gross_salary",
+        "deductions",
+        "net_salary"
+      ],
+      "create_hidden": [
+        "summary_id"
+      ]
+    },
+    "payroll_period_master": {
+      "column_count": 6,
+      "columns": [
+        "period_id",
+        "period_code",
+        "start_date",
+        "end_date",
+        "payroll_lock_date",
+        "status"
+      ],
+      "create_shown": [
+        "period_code",
+        "start_date",
+        "end_date",
+        "payroll_lock_date",
+        "status"
+      ],
+      "create_hidden": [
+        "period_id"
+      ]
+    },
+    "payroll_run": {
+      "column_count": 4,
+      "columns": [
+        "payroll_run_id",
+        "period_id",
+        "run_date",
+        "status"
+      ],
+      "create_shown": [
+        "period_id",
+        "run_date",
+        "status"
+      ],
+      "create_hidden": [
+        "payroll_run_id"
+      ]
+    },
+    "policy_assignment": {
+      "column_count": 11,
+      "columns": [
+        "assignment_id",
+        "policy_id",
+        "variant_id",
+        "assignment_level",
+        "target_location_id",
+        "target_department_id",
+        "target_designation_id",
+        "target_gender",
+        "target_employee_id",
+        "override_direction",
+        "override_value"
+      ],
+      "create_shown": [
+        "policy_id",
+        "variant_id",
+        "assignment_level",
+        "target_location_id",
+        "target_department_id",
+        "target_designation_id",
+        "target_gender",
+        "target_employee_id",
+        "override_direction",
+        "override_value"
+      ],
+      "create_hidden": [
+        "assignment_id"
+      ]
+    },
+    "policy_variant": {
+      "column_count": 8,
+      "columns": [
+        "variant_id",
+        "policy_id",
+        "variant_code",
+        "variant_name",
+        "leave_entitlements",
+        "is_default",
+        "applicable_to",
+        "status"
+      ],
+      "create_shown": [
+        "policy_id",
+        "variant_code",
+        "variant_name",
+        "leave_entitlements",
+        "is_default",
+        "applicable_to",
+        "status"
+      ],
+      "create_hidden": [
+        "variant_id"
+      ]
+    },
+    "pt_slab_master": {
+      "column_count": 6,
+      "columns": [
+        "slab_id",
+        "state_code",
+        "effective_from",
+        "min_salary",
+        "max_salary",
+        "pt_amount"
+      ],
+      "create_shown": [
+        "state_code",
+        "effective_from",
+        "min_salary",
+        "max_salary",
+        "pt_amount"
+      ],
+      "create_hidden": [
+        "slab_id"
+      ]
+    },
+    "role_master": {
+      "column_count": 5,
+      "columns": [
+        "role_id",
+        "role_code",
+        "role_name",
+        "permissions",
+        "status"
+      ],
+      "create_shown": [
+        "role_code",
+        "role_name",
+        "permissions",
+        "status"
+      ],
+      "create_hidden": [
+        "role_id"
+      ]
+    },
+    "roster": {
+      "column_count": 14,
+      "columns": [
+        "roster_id",
+        "roster_code",
+        "location_id",
+        "shift_policy_id",
+        "roster_date",
+        "is_holiday",
+        "is_weekly_off",
+        "approved_leave_count",
+        "available_staff_count",
+        "scenario",
+        "effective_open_time",
+        "effective_close_time",
+        "version",
+        "roster_status"
+      ],
+      "create_shown": [
+        "roster_code",
+        "location_id",
+        "shift_policy_id",
+        "roster_date",
+        "is_holiday",
+        "is_weekly_off",
+        "approved_leave_count",
+        "available_staff_count",
+        "scenario",
+        "effective_open_time",
+        "effective_close_time",
+        "version",
+        "roster_status"
+      ],
+      "create_hidden": [
+        "roster_id"
+      ]
+    },
+    "roster_history": {
+      "column_count": 7,
+      "columns": [
+        "history_id",
+        "roster_id",
+        "location_id",
+        "roster_date",
+        "version",
+        "slots_snapshot",
+        "change_reason"
+      ],
+      "create_shown": [
+        "roster_id",
+        "location_id",
+        "roster_date",
+        "version",
+        "slots_snapshot",
+        "change_reason"
+      ],
+      "create_hidden": [
+        "history_id"
+      ]
+    },
+    "roster_slots": {
+      "column_count": 11,
+      "columns": [
+        "slot_id",
+        "roster_id",
+        "employee_id",
+        "slot_type",
+        "is_keyholder",
+        "slot_start",
+        "slot_end",
+        "preference_applied",
+        "preference_override",
+        "slot_status",
+        "original_employee_id"
+      ],
+      "create_shown": [
+        "roster_id",
+        "employee_id",
+        "slot_type",
+        "is_keyholder",
+        "slot_start",
+        "slot_end",
+        "preference_applied",
+        "preference_override",
+        "slot_status",
+        "original_employee_id"
+      ],
+      "create_hidden": [
+        "slot_id"
+      ]
+    },
+    "salary_structure_master": {
+      "column_count": 6,
+      "columns": [
+        "structure_id",
+        "structure_code",
+        "grade_code",
+        "basic_percentage",
+        "hra_percentage",
+        "special_allowance_percentage"
+      ],
+      "create_shown": [
+        "structure_code",
+        "grade_code",
+        "basic_percentage",
+        "hra_percentage",
+        "special_allowance_percentage"
+      ],
+      "create_hidden": [
+        "structure_id"
+      ]
+    },
+    "service_type_master": {
+      "column_count": 6,
+      "columns": [
+        "service_code",
+        "service_name",
+        "service_category",
+        "requires_staff",
+        "requires_booking",
+        "linked_department_code"
+      ],
+      "create_shown": [
+        "service_code",
+        "service_name",
+        "service_category",
+        "requires_staff",
+        "requires_booking",
+        "linked_department_code"
+      ],
+      "create_hidden": []
+    },
+    "shift_policy_master": {
+      "column_count": 28,
+      "columns": [
+        "policy_id",
+        "policy_code",
+        "location_id",
+        "policy_name",
+        "shift_type",
+        "coverage_mode",
+        "shift_start_time",
+        "shift_end_time",
+        "total_shift_hours",
+        "break_duration_minutes",
+        "net_work_hours",
+        "sanctioned_strength",
+        "max_leave_per_day",
+        "critical_store_flag",
+        "keyholder_required",
+        "primary_keyholder_id",
+        "backup_keyholder_id",
+        "roster_auto_generate",
+        "roster_cycle",
+        "weekly_off_pattern",
+        "weekly_off_day",
+        "max_consecutive_days",
+        "override_authority",
+        "holiday_working_policy",
+        "co_credit_trigger",
+        "edit_lock_hours",
+        "roster_versioning",
+        "policy_status"
+      ],
+      "create_shown": [
+        "policy_code",
+        "location_id",
+        "policy_name",
+        "shift_type",
+        "coverage_mode",
+        "shift_start_time",
+        "shift_end_time",
+        "total_shift_hours",
+        "break_duration_minutes",
+        "net_work_hours",
+        "sanctioned_strength",
+        "max_leave_per_day",
+        "critical_store_flag",
+        "keyholder_required",
+        "primary_keyholder_id",
+        "backup_keyholder_id",
+        "roster_auto_generate",
+        "roster_cycle",
+        "weekly_off_pattern",
+        "weekly_off_day",
+        "max_consecutive_days",
+        "override_authority",
+        "holiday_working_policy",
+        "co_credit_trigger",
+        "edit_lock_hours",
+        "roster_versioning",
+        "policy_status"
+      ],
+      "create_hidden": [
+        "policy_id"
+      ]
+    },
+    "state_compliance_master": {
+      "column_count": 6,
+      "columns": [
+        "compliance_id",
+        "state_code",
+        "effective_from",
+        "pf_applicable",
+        "esi_applicable",
+        "gratuity_applicable"
+      ],
+      "create_shown": [
+        "state_code",
+        "effective_from",
+        "pf_applicable",
+        "esi_applicable",
+        "gratuity_applicable"
+      ],
+      "create_hidden": [
+        "compliance_id"
+      ]
+    },
+    "state_master": {
+      "column_count": 8,
+      "columns": [
+        "state_code",
+        "state_name",
+        "country_code",
+        "status",
+        "created_by",
+        "created_at",
+        "modified_by",
+        "modified_at"
+      ],
+      "create_shown": [
+        "state_code",
+        "state_name",
+        "country_code",
+        "status",
+        "created_by",
+        "created_at",
+        "modified_by",
+        "modified_at"
+      ],
+      "create_hidden": []
+    },
+    "sub_location": {
+      "column_count": 19,
+      "columns": [
+        "location_id",
+        "location_code",
+        "parent_entity_id",
+        "location_name",
+        "brand_flag",
+        "location_type",
+        "address_line1",
+        "city",
+        "pincode",
+        "state",
+        "state_code",
+        "latitude",
+        "longitude",
+        "phone",
+        "email",
+        "cost_centre_code",
+        "area_manager_id",
+        "onboarding_status",
+        "status"
+      ],
+      "create_shown": [
+        "location_code",
+        "parent_entity_id",
+        "location_name",
+        "brand_flag",
+        "location_type",
+        "address_line1",
+        "city",
+        "pincode",
+        "state",
+        "state_code",
+        "latitude",
+        "longitude",
+        "phone",
+        "email",
+        "cost_centre_code",
+        "area_manager_id",
+        "onboarding_status",
+        "status"
+      ],
+      "create_hidden": [
+        "location_id"
+      ]
+    }
+  }
+}

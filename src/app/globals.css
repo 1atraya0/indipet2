@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fff9f0;
+  --foreground: #0f172a;
+  --panel: rgba(255, 255, 255, 0.72);
+  --panel-strong: rgba(255, 255, 255, 0.88);
+  --gold: #ffd700;
+  --green: #2a7d5f;
+  --ivory: #fff9f0;
+  --blue: #1a4f8a;
+  --orange: #ff6600;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-space-grotesk);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, rgba(255, 215, 0, 0.16), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(42, 125, 95, 0.14), transparent 32%),
+    linear-gradient(180deg, #fffdf8 0%, #fff9f0 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+}
+
+::selection {
+  background: rgba(26, 79, 138, 0.18);
+  color: #0f172a;
+}
+
+/* Utility to hide native scrollbars while keeping scroll behavior */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  width: 0;
+  height: 0;
+}
