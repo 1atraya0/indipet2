@@ -16,13 +16,16 @@ function getDatabaseUrl() {
   }
 
   if (process.env.NODE_ENV === "production") {
+    let parsedUrl: URL;
+
     try {
-      const parsedUrl = new URL(connectionString);
-      if (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1") {
-        throw new Error("DATABASE_URL must point to Supabase or another external Postgres host in production.");
-      }
+      parsedUrl = new URL(connectionString);
     } catch {
       throw new Error("DATABASE_URL is invalid. Provide a full postgres connection string in Vercel.");
+    }
+
+    if (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1") {
+      throw new Error("DATABASE_URL must point to Supabase or another external Postgres host in production.");
     }
   }
 
