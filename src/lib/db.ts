@@ -5,21 +5,34 @@ declare global {
   var __indipetAdminPool: Pool | undefined;
 }
 
-const connectionString = process.env.DATABASE_URL;
+function getDatabaseUrl() {
+  const connectionString =
+    process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
 
-const poolConfig = connectionString
-  ? {
-      connectionString,
-      ssl: { rejectUnauthorized: false },
+  if (!connectionString) {
+    throw new Error(
+      "Missing DATABASE_URL. Set DATABASE_URL in Vercel to your Supabase Postgres connection string.",
+    );
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const parsedUrl = new URL(connectionString);
+      if (parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1") {
+        throw new Error("DATABASE_URL must point to Supabase or another external Postgres host in production.");
+      }
+    } catch {
+      throw new Error("DATABASE_URL is invalid. Provide a full postgres connection string in Vercel.");
     }
-  : {
-      host: process.env.PGHOST,
-      port: Number(process.env.PGPORT || 5432),
-      user: process.env.PGUSER,
-      password: process.env.PGPASSWORD,
-      database: process.env.PGDATABASE || "postgres",
-      ssl: { rejectUnauthorized: false },
-    };
+  }
+
+  return connectionString;
+}
+
+const poolConfig = {
+  connectionString: getDatabaseUrl(),
+  ssl: { rejectUnauthorized: false },
+};
 
 export const pool = globalThis.__indipetAdminPool ?? new Pool(poolConfig);
 
