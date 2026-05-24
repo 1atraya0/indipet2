@@ -196,3 +196,24 @@ export function getRelatedTables(tableName: string) {
     referenced: tableLookup[foreignKey.references_table],
   }));
 }
+
+export async function listEmployeeLookupRows(_purpose: string, limit = 500, offset = 0) {
+  const table = getTable("employee_master");
+  const orderColumn = table.columns.some((column) => column.column === "employee_code")
+    ? "employee_code"
+    : getOrderColumn(table);
+
+  const rowsResult = await pool.query(
+    `select * from ${quoteIdentifier(table.table_name)} where coalesce(${quoteIdentifier("status")}, '') ilike 'active%' order by ${quoteIdentifier(orderColumn)} asc limit $1 offset $2`,
+    [limit, offset],
+  );
+  const countResult = await pool.query(
+    `select count(*)::int as count from ${quoteIdentifier(table.table_name)} where coalesce(${quoteIdentifier("status")}, '') ilike 'active%'`,
+  );
+
+  return {
+    table,
+    rows: rowsResult.rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+  };
+}
