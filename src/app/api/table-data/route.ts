@@ -5,6 +5,7 @@ import {
   getRelatedTables,
   getTableDetails,
   listEmployeeLookupRows,
+  listSubLocationRowsByParentEntity,
   listTableRows,
   updateTableRow,
 } from "@/lib/table-access";
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     const limit = Number(searchParams.get("limit") ?? 25);
     const offset = Number(searchParams.get("offset") ?? 0);
     const purpose = searchParams.get("purpose");
+    const parentEntityId = searchParams.get("parentEntityId")?.trim();
 
     if (table === "employee_master" && (purpose === "area_manager" || purpose === "keyholder")) {
       const snapshot = await listEmployeeLookupRows(purpose, Number.isNaN(limit) ? 500 : limit, Number.isNaN(offset) ? 0 : offset);
@@ -38,6 +40,20 @@ export async function GET(request: Request) {
         relatedTables: getRelatedTables(table),
         columns: details.table.columns,
         foreignKeys: details.table.foreign_keys,
+      });
+    }
+
+    if (table === "sub_location" && parentEntityId) {
+      const snapshot = await listSubLocationRowsByParentEntity(parentEntityId, Number.isNaN(limit) ? 25 : limit, Number.isNaN(offset) ? 0 : offset);
+      const details = getTableDetails(table);
+
+      return NextResponse.json({
+        ...details,
+        rows: snapshot.rows,
+        total: snapshot.total,
+        relatedTables: getRelatedTables(table),
+        columns: snapshot.table.columns,
+        foreignKeys: snapshot.table.foreign_keys,
       });
     }
 

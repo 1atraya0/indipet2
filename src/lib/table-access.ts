@@ -4,6 +4,7 @@ import {
   formatLabel,
   getFieldKind,
   getPrimaryKey,
+  formatEmployeeCode,
   tableLookup,
   type ColumnDefinition,
   type TableDefinition,
@@ -79,6 +80,17 @@ function getOrderColumn(table: TableDefinition) {
   return getPrimaryKey(table) ?? table.columns[0]?.column ?? "";
 }
 
+function decorateEmployeeCode(table: TableDefinition, row: Record<string, unknown>) {
+  if (table.table_name !== "employee_master") {
+    return row;
+  }
+
+  return {
+    ...row,
+    employee_code: formatEmployeeCode(row),
+  };
+}
+
 function buildWhereClause(table: TableDefinition, recordId: string, paramOffset = 0) {
   const primaryKey = getPrimaryKey(table);
   if (!primaryKey) {
@@ -105,7 +117,26 @@ export async function listTableRows(tableName: string, limit = 25, offset = 0) {
 
   return {
     table,
-    rows: rowsResult.rows,
+    rows: rowsResult.rows.map((row) => decorateEmployeeCode(table, row)),
+    total: Number(countResult.rows[0]?.count ?? 0),
+  };
+}
+
+export async function listSubLocationRowsByParentEntity(parentEntityId: string, limit = 25, offset = 0) {
+  const table = getTable("sub_location");
+  const orderColumn = getOrderColumn(table);
+  const rowsResult = await pool.query(
+    `select * from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier("parent_entity_id")} = $1 order by ${quoteIdentifier(orderColumn)} desc limit $2 offset $3`,
+    [parentEntityId, limit, offset],
+  );
+  const countResult = await pool.query(
+    `select count(*)::int as count from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier("parent_entity_id")} = $1`,
+    [parentEntityId],
+  );
+
+  return {
+    table,
+    rows: rowsResult.rows.map((row) => decorateEmployeeCode(table, row)),
     total: Number(countResult.rows[0]?.count ?? 0),
   };
 }
@@ -141,7 +172,7 @@ export async function createTableRow(tableName: string, input: RecordPayload) {
     values,
   );
 
-  return result.rows[0];
+  return decorateEmployeeCode(table, result.rows[0]);
 }
 
 export async function updateTableRow(tableName: string, recordId: string, input: RecordPayload) {
@@ -162,7 +193,7 @@ export async function updateTableRow(tableName: string, recordId: string, input:
     [...values, ...where.values],
   );
 
-  return result.rows[0] ?? null;
+  return result.rows[0] ? decorateEmployeeCode(table, result.rows[0]) : null;
 }
 
 export async function deleteTableRow(tableName: string, recordId: string) {

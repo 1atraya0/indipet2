@@ -267,6 +267,10 @@ function toInputValue(column: ColumnDefinition, value: string | boolean) {
 }
 
 function isLockedGeneratedField(tableName: string, columnName: string) {
+  if (tableName === "employee_master" && columnName === "employee_code") {
+    return true;
+  }
+
   if (tableName === "parent_entity" && columnName === "entity_code") {
     return true;
   }
@@ -589,6 +593,24 @@ export function AdminPortal() {
 
   const visibleColumns   = activeTableConfig.columns;
   const outgoingRelations = snapshot.relatedTables;
+  const formColumns = activeTableName === "employee_master"
+    ? visibleColumns
+        .filter((column) => shouldShowInCreateForm(column, activeTableConfig.table_name))
+        .map((column, index) => ({ column, index }))
+        .sort((left, right) => {
+          const priority = (columnName: string) => {
+            if (columnName === "parent_entity_id") return 0;
+            if (columnName === "location_id") return 1;
+            return 2;
+          };
+
+          const leftPriority = priority(left.column.column);
+          const rightPriority = priority(right.column.column);
+          if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+          return left.index - right.index;
+        })
+        .map((entry) => entry.column)
+    : visibleColumns.filter((column) => shouldShowInCreateForm(column, activeTableConfig.table_name));
 
   // ── handlers ─────────────────────────────────────────────────────────────
 
@@ -636,6 +658,31 @@ export function AdminPortal() {
             return;
           }
 
+          if (refName === "sub_location") {
+            const parentEntityId = String(formState.parent_entity_id ?? "").trim();
+            if (!parentEntityId) {
+              for (const fk of fks) {
+                results[fk.column] = [];
+              }
+              return;
+            }
+
+            const res = await fetch(buildTableApiUrl(refName, {
+              limit: 500,
+              parentEntityId,
+            }));
+            if (!res.ok) return;
+            const data = (await res.json()) as { rows: Record<string, unknown>[] };
+
+            for (const fk of fks) {
+              results[fk.column] = data.rows.map((row) => ({
+                value: String(row[fk.references_column] ?? ""),
+                label: getTableDisplayColumn(refDef ?? tableLookup.sub_location, row),
+              }));
+            }
+            return;
+          }
+
           const res = await fetch(buildTableApiUrl(refName, { limit: 500 }));
           if (!res.ok) return;
           const data = (await res.json()) as { rows: Record<string, unknown>[] };
@@ -671,6 +718,11 @@ export function AdminPortal() {
     loadFkOptions(activeTable).catch(() => {});
   };
 
+  useEffect(() => {
+    if (activeTableName !== "employee_master" || !formOpen || !activeTable) return;
+    loadFkOptions(activeTable).catch(() => {});
+  }, [activeTableName, formOpen, formState.parent_entity_id]);
+
   const openEdit = (row: Record<string, unknown>) => {
     if (!activeTable) return;
     const pk = snapshot.primaryKey ?? activeTable.primary_key[0] ?? null;
@@ -702,6 +754,18 @@ export function AdminPortal() {
 
   const submitRecord = async () => {
     if (!activeTable) return;
+
+    if (activeTableName === "employee_master") {
+      if (!String(formState.parent_entity_id ?? "").trim()) {
+        setError("parent_entity_id is required for employee_code generation");
+        return;
+      }
+
+      if (!String(formState.location_id ?? "").trim()) {
+        setError("location_id is required for employee_code generation");
+        return;
+      }
+    }
 
     if (activeTableName === "role_master") {
       const roleName = String(formState.role_name ?? "").trim();
@@ -807,6 +871,10 @@ export function AdminPortal() {
         } else if (column === "category_code") {
           next.category_name = EMPLOYEE_CATEGORY_BY_CODE[String(value)] ?? next.category_name;
         }
+      }
+
+      if (activeTableName === "employee_master" && column === "parent_entity_id") {
+        next.location_id = "";
       }
 
       return next;
@@ -1549,7 +1617,7 @@ export function AdminPortal() {
                   initial="initial"
                   animate="animate"
                 >
-                  {visibleColumns.filter((column) => shouldShowInCreateForm(column, activeTable.table_name)).map((column) => {
+                  {formColumns.map((column) => {
                     const kind      = getFieldKind(column);
                     const isDepartmentShortCode = activeTable.table_name === "department_master" && column.column === "department_short_code";
                     const isRolePermissionsField = activeTable.table_name === "role_master" && column.column === "permissions";
@@ -1561,6 +1629,8 @@ export function AdminPortal() {
                     const isFkColumn   = activeTable.foreign_keys.some((fk) => fk.column === column.column);
                     const hasFkOptions = Array.isArray(fkOpts) && fkOpts.length > 0;
                     const isGeoField = ["country", "country_code", "state", "state_code", "city"].includes(column.column);
+                    const isEmployeeLocationField = activeTable.table_name === "employee_master" && column.column === "location_id";
+                    const hasParentEntity = String(formState.parent_entity_id ?? "").trim() !== "";
 
                     let geoOpts: FkOption[] | null = null;
                     if (!hasFkOptions && kind === "text") {
@@ -1703,8 +1773,19 @@ export function AdminPortal() {
                             placeholder={column.default ? `Default: ${column.default}` : "{}"}
                           />
                         ) : isFkColumn ? (
-                          <select value={String(inputValue)} disabled={readOnly} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
-                            <option value="">{hasFkOptions ? "— Select —" : "No eligible options"}</option>
+                          <select
+                            value={String(inputValue)}
+                            disabled={readOnly || (isEmployeeLocationField && !hasParentEntity)}
+                            onChange={(e) => updateForm(column.column, e.target.value)}
+                            className={selectClass}
+                          >
+                            <option value="">
+                              {isEmployeeLocationField && !hasParentEntity
+                                ? "Select parent entity first"
+                                : hasFkOptions
+                                  ? "— Select —"
+                                  : "No eligible options"}
+                            </option>
                             {fkOpts?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
                           ) : useGeoSelect ? (
