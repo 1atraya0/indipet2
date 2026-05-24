@@ -267,6 +267,10 @@ function toInputValue(column: ColumnDefinition, value: string | boolean) {
 }
 
 function isLockedGeneratedField(tableName: string, columnName: string) {
+  if (tableName === "parent_entity" && columnName === "entity_code") {
+    return true;
+  }
+
   if (tableName === "department_master") {
     return ["department_code", "revenue_centre_code"].includes(columnName);
   }
@@ -714,6 +718,14 @@ export function AdminPortal() {
     try {
       const body = activeTable.columns.reduce<Record<string, string | boolean | null>>((draft, col) => {
         if (mode === "create" && col.default?.includes("nextval(")) {
+          return draft;
+        }
+
+        if (isLockedGeneratedField(activeTableName, col.column)) {
+          return draft;
+        }
+
+        if (mode === "edit" && col.column === activeTable.primary_key[0]) {
           return draft;
         }
 

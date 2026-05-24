@@ -33,4 +33,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
+Before deploying, make sure the production database has the latest SQL migrations applied. This repo includes `npm run migrate` for that purpose, and `npm run vercel-build` will run the migrations before building.
+
+In Vercel, point `DATABASE_URL` at the production Postgres instance and use `npm run vercel-build` as the build command if you want deployments to apply the schema update automatically.
+
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
