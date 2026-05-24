@@ -93,9 +93,10 @@
       ]
     },
     "department_master": {
-      "column_count": 6,
+      "column_count": 7,
       "columns": [
         "department_id",
+        "department_short_code",
         "department_code",
         "department_name",
         "revenue_centre_code",
@@ -103,14 +104,15 @@
         "status"
       ],
       "create_shown": [
-        "department_code",
+        "department_short_code",
         "department_name",
-        "revenue_centre_code",
         "is_revenue_generating",
         "status"
       ],
       "create_hidden": [
-        "department_id"
+        "department_id",
+        "department_code",
+        "revenue_centre_code"
       ]
     },
     "designation_master": {
@@ -1098,13 +1100,14 @@
       ]
     },
     "service_type_master": {
-      "column_count": 6,
+      "column_count": 7,
       "columns": [
         "service_code",
         "service_name",
         "service_category",
         "requires_staff",
         "requires_booking",
+        "linked_department_id",
         "linked_department_code"
       ],
       "create_shown": [
@@ -1113,9 +1116,11 @@
         "service_category",
         "requires_staff",
         "requires_booking",
-        "linked_department_code"
+        "linked_department_id"
       ],
-      "create_hidden": []
+      "create_hidden": [
+        "linked_department_code"
+      ]
     },
     "shift_policy_master": {
       "column_count": 28,
@@ -1228,7 +1233,7 @@
       "create_hidden": []
     },
     "sub_location": {
-      "column_count": 19,
+      "column_count": 21,
       "columns": [
         "location_id",
         "location_code",
@@ -1247,11 +1252,12 @@
         "email",
         "cost_centre_code",
         "area_manager_id",
+        "primary_keyholder_id",
+        "backup_keyholder_id",
         "onboarding_status",
         "status"
       ],
       "create_shown": [
-        "location_code",
         "parent_entity_id",
         "location_name",
         "brand_flag",
@@ -1267,11 +1273,14 @@
         "email",
         "cost_centre_code",
         "area_manager_id",
+        "primary_keyholder_id",
+        "backup_keyholder_id",
         "onboarding_status",
         "status"
       ],
       "create_hidden": [
-        "location_id"
+        "location_id",
+        "location_code"
       ]
     }
   }

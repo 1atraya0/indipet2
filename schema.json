@@ -269,6 +269,12 @@
         "default": "nextval('department_master_department_id_seq'::regclass)"
       },
       {
+        "column": "department_short_code",
+        "type": "character varying",
+        "nullable": false,
+        "default": null
+      },
+      {
         "column": "department_code",
         "type": "character varying",
         "nullable": true,
@@ -1803,7 +1809,7 @@
       {
         "column": "service_code",
         "type": "character varying",
-        "nullable": true,
+        "nullable": false,
         "default": null
       },
       {
@@ -2210,12 +2216,6 @@
       {
         "column": "period_code",
         "type": "character varying",
-        "nullable": true,
-        "default": null
-      },
-      {
-        "column": "start_date",
-        "type": "date",
         "nullable": true,
         "default": null
       },
@@ -2849,7 +2849,7 @@
       {
         "column": "service_code",
         "type": "character varying",
-        "nullable": false,
+        "nullable": true,
         "default": null
       },
       {
@@ -2877,13 +2877,25 @@
         "default": null
       },
       {
+        "column": "linked_department_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
         "column": "linked_department_code",
         "type": "character varying",
         "nullable": true,
         "default": null
       }
     ],
-    "foreign_keys": []
+    "foreign_keys": [
+      {
+        "column": "linked_department_id",
+        "references_table": "department_master",
+        "references_column": "department_id"
+      }
+    ]
   },
   {
     "table_name": "shift_policy_master",
@@ -3295,6 +3307,18 @@
         "default": null
       },
       {
+        "column": "primary_keyholder_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "backup_keyholder_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
         "column": "onboarding_status",
         "type": "character varying",
         "nullable": true,
@@ -3320,6 +3344,16 @@
       },
       {
         "column": "area_manager_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
+      },
+      {
+        "column": "primary_keyholder_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
+      },
+      {
+        "column": "backup_keyholder_id",
         "references_table": "employee_master",
         "references_column": "employee_id"
       }

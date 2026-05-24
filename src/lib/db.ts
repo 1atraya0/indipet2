@@ -9,7 +9,10 @@ function getDatabaseUrl() {
   const rawConnectionString =
     process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING;
 
-  const connectionString = rawConnectionString?.trim().replace(/^['"]|['"]$/g, "");
+  const connectionString = rawConnectionString
+    ?.replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
 
   if (!connectionString) {
     throw new Error(

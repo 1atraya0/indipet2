@@ -51,7 +51,7 @@
     "shift_policy_master",
     "state_compliance_master",
     "state_master",
-    "sub_location"
+      "column_count": 7,
   ],
   "tables_only_in_portal": [],
   "portal_sections": [],
@@ -317,13 +317,19 @@
       "primary_key": [
         "department_id"
       ],
-      "column_count": 6,
+      "column_count": 7,
       "columns": [
         {
           "column": "department_id",
           "type": "integer",
           "nullable": false,
           "default": "nextval('department_master_department_id_seq'::regclass)"
+        },
+        {
+          "column": "department_short_code",
+          "type": "character varying",
+          "nullable": false,
+          "default": null
         },
         {
           "column": "department_code",
@@ -2934,13 +2940,25 @@
           "default": null
         },
         {
+          "column": "linked_department_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
           "column": "linked_department_code",
           "type": "character varying",
           "nullable": true,
           "default": null
         }
       ],
-      "foreign_keys": []
+      "foreign_keys": [
+        {
+          "column": "linked_department_id",
+          "references_table": "department_master",
+          "references_column": "department_id"
+        }
+      ]
     },
     "shift_policy_master": {
       "primary_key": [

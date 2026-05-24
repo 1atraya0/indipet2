@@ -11,10 +11,15 @@ import {
   getFieldKind,
   getTableDisplayColumn,
   portalSections,
+  shouldShowInCreateForm,
   tableLookup,
   type ColumnDefinition,
   type TableDefinition,
 } from "@/lib/portal-schema";
+
+const visiblePortalTableNames = new Set(portalSections.flatMap((section) => section.tables));
+const visiblePortalTables = allTables.filter((table) => visiblePortalTableNames.has(table.table_name));
+const initialVisibleTableName = portalSections[0]?.tables[0] ?? visiblePortalTables[0]?.table_name ?? allTables[0]?.table_name ?? "";
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -32,8 +37,10 @@ type FormState = Record<string, string | boolean>;
 type FkOption = { value: string; label: string };
 type GeoCountry = { name: string; iso2: string; phonecode: string; currency: string };
 type GeoState = { name: string; iso2: string };
+type GeoCity = { name: string };
 type Mode = "create" | "edit";
 type FilterRule = { id: string; column: string; operator: string; value: string };
+type PermissionMatrix = Record<string, Record<string, Record<string, boolean>>>;
 
 // ─── static enum options ─────────────────────────────────────────────────────
 
@@ -82,6 +89,44 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
     "Delhi", "Jammu and Kashmir", "Ladakh", "Chandigarh", "Puducherry",
   ],
 };
+
+const PERMISSION_ACTIONS = [
+  "View",
+  "Create",
+  "Edit",
+  "Delete",
+  "Approve",
+  "Export",
+  "Run Payroll",
+  "Correct Attendance",
+] as const;
+
+const PERMISSION_MODULES = [
+  {
+    name: "Employee Management",
+    submodules: ["Employee Master", "Employee Finance", "Employee Skills"],
+  },
+  {
+    name: "Leave & Attendance",
+    submodules: ["Leave Applications", "Attendance Correction", "CO Ledger"],
+  },
+  {
+    name: "Shift & Roster",
+    submodules: ["Shift Policy", "Roster", "Roster History"],
+  },
+  {
+    name: "Payroll & Compliance",
+    submodules: ["Salary Structure", "Payroll Run", "PT / Minimum Wage"],
+  },
+  {
+    name: "Exit & Audit",
+    submodules: ["Exit Workflow", "FnF Settlement", "Audit Log"],
+  },
+  {
+    name: "Organization Setup",
+    submodules: ["State Master", "Parent Entity", "Sub Location"],
+  },
+] as const;
 
 // ─── filter operators ─────────────────────────────────────────────────────────
 
@@ -169,6 +214,28 @@ function makeEditForm(table: TableDefinition, row: Record<string, unknown>) {
   }, {});
 }
 
+function formatEmployeeLookupLabel(row: Record<string, unknown>) {
+  const employeeCode = String(row.employee_code ?? row.employee_id ?? "").trim();
+  const nameParts = [row.first_name, row.last_name].filter(Boolean).map(String).join(" ").trim();
+  const designation = String(row.designation_name ?? row.role_name ?? "").trim();
+
+  const segments = [employeeCode, nameParts].filter(Boolean);
+  const label = segments.join(" - ");
+
+  if (designation) {
+    return label ? `${label} (${designation})` : designation;
+  }
+
+  return label || String(row.employee_id ?? "");
+}
+
+function formatDepartmentLookupLabel(row: Record<string, unknown>) {
+  const name = String(row.department_name ?? "").trim();
+  const shortCode = String(row.department_short_code ?? row.department_code ?? "").trim();
+  if (name && shortCode) return `${name} - ${shortCode}`;
+  return name || shortCode || String(row.department_id ?? "");
+}
+
 function formatCellValue(column: ColumnDefinition, value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
   const kind = getFieldKind(column);
@@ -181,6 +248,22 @@ function toInputValue(column: ColumnDefinition, value: string | boolean) {
   return getFieldKind(column) === "checkbox" ? Boolean(value) : value;
 }
 
+function isLockedGeneratedField(tableName: string, columnName: string) {
+  if (tableName === "department_master") {
+    return ["department_code", "revenue_centre_code"].includes(columnName);
+  }
+
+  if (tableName === "role_master") {
+    return columnName === "role_code";
+  }
+
+  return false;
+}
+
+function normalizeDepartmentShortCode(value: string) {
+  return value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+}
+
 function normalizeDateTime(v: string) {
   if (!v) return "";
   if (v.includes("T")) return v.slice(0, 16);
@@ -189,12 +272,84 @@ function normalizeDateTime(v: string) {
 function normalizeDate(v: string) { return v ? v.slice(0, 10) : ""; }
 function normalizeTime(v: string) { return v ? v.slice(0, 5) : ""; }
 
+function parseGstin(gstin: string) {
+  const normalized = gstin.trim().toUpperCase();
+  if (!/^[0-9A-Z]{15}$/.test(normalized)) return null;
+
+  const panNumber = normalized.slice(2, 12);
+  const taxpayerTypeCode = panNumber[3];
+  const entityTypeMap: Record<string, string> = {
+    C: "company",
+    F: "partnership",
+    P: "proprietorship",
+  };
+
+  return {
+    panNumber,
+    entityType: entityTypeMap[taxpayerTypeCode] ?? "",
+  };
+}
+
 function inputValueForField(column: ColumnDefinition, value: string | boolean) {
   const kind = getFieldKind(column);
   if (kind === "datetime") return normalizeDateTime(String(value));
   if (kind === "date") return normalizeDate(String(value));
   if (kind === "time") return normalizeTime(String(value));
   return value;
+}
+
+function normalizeRoleCode(value: string) {
+  const normalized = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+
+  if (!normalized) return "";
+  return `ROLE-${normalized}`;
+}
+
+function createEmptyPermissionMatrix(): PermissionMatrix {
+  return PERMISSION_MODULES.reduce<PermissionMatrix>((modules, module) => {
+    modules[module.name] = module.submodules.reduce<Record<string, Record<string, boolean>>>((submodules, submodule) => {
+      submodules[submodule] = PERMISSION_ACTIONS.reduce<Record<string, boolean>>((actions, action) => {
+        actions[action] = false;
+        return actions;
+      }, {});
+      return submodules;
+    }, {});
+    return modules;
+  }, {});
+}
+
+function toPermissionMatrix(value: unknown) {
+  if (!value || typeof value !== "object") return createEmptyPermissionMatrix();
+
+  const source = value as Record<string, Record<string, Record<string, unknown>>>;
+  const matrix = createEmptyPermissionMatrix();
+
+  for (const module of PERMISSION_MODULES) {
+    const sourceModule = source[module.name];
+    if (!sourceModule) continue;
+
+    for (const submodule of module.submodules) {
+      const sourceSubmodule = sourceModule[submodule];
+      if (!sourceSubmodule) continue;
+
+      for (const action of PERMISSION_ACTIONS) {
+        if (typeof sourceSubmodule[action] === "boolean") {
+          matrix[module.name][submodule][action] = sourceSubmodule[action] as boolean;
+        }
+      }
+    }
+  }
+
+  return matrix;
+}
+
+function stringifyPermissionMatrix(matrix: PermissionMatrix) {
+  return JSON.stringify(matrix, null, 2);
 }
 
 function buildTableSearch(row: Record<string, unknown>) {
@@ -215,7 +370,7 @@ export function AdminPortal() {
   const searchParams = useSearchParams();
   const urlInitRef = useRef(false);
 
-  const [activeTableName, setActiveTableName] = useState(allTables[0]?.table_name ?? "");
+  const [activeTableName, setActiveTableName] = useState(initialVisibleTableName);
   const [openSection, setOpenSection]         = useState(portalSections[0]?.title ?? "");
   const [snapshot, setSnapshot]               = useState<TableSnapshot>(initialSnapshot);
   const [loading, setLoading]                 = useState(true);
@@ -230,13 +385,26 @@ export function AdminPortal() {
   const [fkOptions, setFkOptions]             = useState<Record<string, FkOption[]>>({});
   const [geoCountries, setGeoCountries]       = useState<GeoCountry[]>([]);
   const [geoStates, setGeoStates]             = useState<GeoState[]>([]);
+  const [geoCities, setGeoCities]             = useState<GeoCity[]>([]);
   const [filters, setFilters]                 = useState<FilterRule[]>([]);
   const [filterOpen, setFilterOpen]           = useState(false);
   const [draftCol, setDraftCol]               = useState("");
   const [draftOp, setDraftOp]                 = useState("contains");
   const [draftVal, setDraftVal]               = useState("");
+  const lastSelectedStateCodeRef = useRef("");
+  const [permissionDraft, setPermissionDraft] = useState<PermissionMatrix>(createEmptyPermissionMatrix());
+  const [permissionMode, setPermissionMode]   = useState<"custom" | "template">("custom");
 
   const deferredSearch = useDeferredValue(search);
+  const selectedStateCode = useMemo(() => {
+    const stateCode = String(formState.state_code ?? "").trim().toUpperCase();
+    if (stateCode) return stateCode;
+
+    const stateName = String(formState.state ?? "").trim();
+    if (!stateName) return "";
+
+    return geoStates.find((state) => state.name === stateName)?.iso2 ?? "";
+  }, [formState.state, formState.state_code, geoStates]);
 
   const filteredRows = useMemo(() => {
     let rows = snapshot.rows;
@@ -269,7 +437,7 @@ export function AdminPortal() {
 
   const incomingRelations = useMemo(
     () =>
-      allTables
+      visiblePortalTables
         .filter((t) => t.foreign_keys.some((fk) => fk.references_table === activeTableName))
         .flatMap((t) =>
           t.foreign_keys
@@ -281,9 +449,9 @@ export function AdminPortal() {
 
   const sectionStats = useMemo(
     () => ({
-      tables: allTables.length,
-      fields: allTables.reduce((n, t) => n + t.columns.length, 0),
-      relationships: allTables.reduce((n, t) => n + t.foreign_keys.length, 0),
+      tables: visiblePortalTables.length,
+      fields: visiblePortalTables.reduce((n, t) => n + t.columns.length, 0),
+      relationships: visiblePortalTables.reduce((n, t) => n + t.foreign_keys.length, 0),
       sections: portalSections.length,
     }),
     [],
@@ -294,7 +462,7 @@ export function AdminPortal() {
     if (urlInitRef.current) return;
     urlInitRef.current = true;
     const table = searchParams.get("table");
-    if (table && tableLookup[table]) {
+    if (table && visiblePortalTableNames.has(table) && tableLookup[table]) {
       startTransition(() => {
         setActiveTableName(table);
         const section = portalSections.find((s) => s.tables.includes(table));
@@ -338,10 +506,73 @@ export function AdminPortal() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!selectedStateCode) {
+      lastSelectedStateCodeRef.current = "";
+      setGeoCities([]);
+      return;
+    }
+
+    const previousStateCode = lastSelectedStateCodeRef.current;
+    lastSelectedStateCodeRef.current = selectedStateCode;
+
+    if (previousStateCode && previousStateCode !== selectedStateCode) {
+      setFormState((prev) => (prev.city === undefined || prev.city === "" ? prev : { ...prev, city: "" }));
+    }
+
+    let cancelled = false;
+
+    fetch(`/api/geo/cities?state=${selectedStateCode}`)
+      .then((r) => r.json() as Promise<GeoCity[]>)
+      .then((cities) => {
+        if (!cancelled && Array.isArray(cities)) {
+          setGeoCities(cities);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setGeoCities([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStateCode]);
+
+  useEffect(() => {
+    if (activeTableName !== "parent_entity") return;
+
+    const gstinValue = String(formState.gstin ?? "").trim();
+    const parsed = parseGstin(gstinValue);
+    if (!parsed) return;
+
+    setFormState((prev) => {
+      let nextState = prev;
+
+      if (prev.pan_number !== parsed.panNumber) {
+        nextState = { ...nextState, pan_number: parsed.panNumber };
+      }
+
+      if (parsed.entityType && prev.entity_type !== parsed.entityType) {
+        nextState = { ...nextState, entity_type: parsed.entityType };
+      }
+
+      return nextState;
+    });
+  }, [activeTableName, formState.gstin]);
+
   // ── guard (after all hooks) ───────────────────────────────────────────────
   const activeTable = tableLookup[activeTableName];
-  const activeTableConfig = activeTable ?? allTables[0];
+  const activeTableConfig = activeTable ?? visiblePortalTables[0];
   if (!activeTableConfig) return null;
+
+  const buildTableApiUrl = (tableName: string, params: Record<string, string | number | undefined> = {}) => {
+    const searchParams = new URLSearchParams({ table: tableName });
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined) continue;
+      searchParams.set(key, String(value));
+    }
+    return `/api/table-data?${searchParams.toString()}`;
+  };
 
   const visibleColumns   = activeTableConfig.columns;
   const outgoingRelations = snapshot.relatedTables;
@@ -360,14 +591,50 @@ export function AdminPortal() {
     await Promise.all(
       Array.from(grouped.entries()).map(async ([refName, fks]) => {
         try {
-          const res = await fetch(`/api/tables/${refName}?limit=500`);
+          const refDef = tableLookup[refName];
+
+          if (refName === "employee_master") {
+            const purposeForColumn = (column: string) => {
+              if (column === "area_manager_id") return "area_manager";
+              if (column === "primary_keyholder_id" || column === "backup_keyholder_id") return "keyholder";
+              return null;
+            };
+
+            const purposes = Array.from(new Set(fks.map((fk) => purposeForColumn(fk.column)).filter(Boolean) as string[]));
+            const purposeRows = new Map<string, Record<string, unknown>[]>();
+
+            await Promise.all(
+              purposes.map(async (purpose) => {
+                const res = await fetch(buildTableApiUrl("employee_master", { limit: 500, purpose }));
+                if (!res.ok) return;
+                const data = (await res.json()) as { rows: Record<string, unknown>[] };
+                purposeRows.set(purpose, data.rows);
+              }),
+            );
+
+            for (const fk of fks) {
+              const purpose = purposeForColumn(fk.column);
+              const rows = purpose ? (purposeRows.get(purpose) ?? []) : [];
+              results[fk.column] = rows.map((row) => ({
+                value: String(row[fk.references_column] ?? ""),
+                label: formatEmployeeLookupLabel(row),
+              }));
+            }
+            return;
+          }
+
+          const res = await fetch(buildTableApiUrl(refName, { limit: 500 }));
           if (!res.ok) return;
           const data = (await res.json()) as { rows: Record<string, unknown>[] };
-          const refDef = tableLookup[refName];
           for (const fk of fks) {
             results[fk.column] = data.rows.map((row) => ({
               value: String(row[fk.references_column] ?? ""),
-              label: refDef ? getTableDisplayColumn(refDef, row) : String(row[fk.references_column] ?? ""),
+              label:
+                refName === "department_master"
+                  ? formatDepartmentLookupLabel(row)
+                  : refDef
+                    ? getTableDisplayColumn(refDef, row)
+                    : String(row[fk.references_column] ?? ""),
             }));
           }
         } catch { /* silently skip */ }
@@ -379,7 +646,14 @@ export function AdminPortal() {
   const openCreate = () => {
     if (!activeTable) return;
     setMode("create"); setCurrentRowId(null);
-    setFormState(makeBlankForm(activeTable));
+    const nextForm = makeBlankForm(activeTable);
+    if (activeTableName === "role_master") {
+      nextForm.status = "active";
+      nextForm.permissions = stringifyPermissionMatrix(createEmptyPermissionMatrix());
+      setPermissionDraft(createEmptyPermissionMatrix());
+      setPermissionMode("custom");
+    }
+    setFormState(nextForm);
     setFormOpen(true);
     loadFkOptions(activeTable).catch(() => {});
   };
@@ -391,6 +665,10 @@ export function AdminPortal() {
     setMode("edit");
     setCurrentRowId(id === null || id === undefined ? null : String(id));
     setFormState(makeEditForm(activeTable, row));
+    if (activeTableName === "role_master") {
+      setPermissionDraft(toPermissionMatrix(row.permissions));
+      setPermissionMode("custom");
+    }
     setFormOpen(true);
     loadFkOptions(activeTable).catch(() => {});
   };
@@ -401,7 +679,7 @@ export function AdminPortal() {
   };
 
   const refreshTable = async () => {
-    const res = await fetch(`/api/tables/${activeTableName}?limit=100`);
+    const res = await fetch(buildTableApiUrl(activeTableName, { limit: 100 }));
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error((body as { error?: string }).error ?? "Failed to refresh table");
@@ -411,29 +689,56 @@ export function AdminPortal() {
 
   const submitRecord = async () => {
     if (!activeTable) return;
+
+    if (activeTableName === "role_master") {
+      const roleName = String(formState.role_name ?? "").trim();
+      if (!roleName) {
+        setError("role_name is required");
+        return;
+      }
+      if (!String(formState.role_code ?? "").trim()) {
+        setFormState((prev) => ({ ...prev, role_code: normalizeRoleCode(roleName) }));
+      }
+    }
+
     setSubmitting(true);
     try {
-      const body = Object.fromEntries(
-        activeTable.columns.map((col) => {
-          const raw = formState[col.column];
-          const kind = getFieldKind(col);
-          if (kind === "checkbox") return [col.column, Boolean(raw)];
-          if (kind === "number") return [col.column, raw === "" ? null : raw];
-          if (kind === "json" && typeof raw === "string" && !raw.trim()) return [col.column, null];
-          return [col.column, raw];
-        }),
-      );
-      const endpoint = mode === "create"
-        ? `/api/tables/${activeTableName}`
-        : `/api/tables/${activeTableName}/${currentRowId}`;
+      const body = activeTable.columns.reduce<Record<string, string | boolean | null>>((draft, col) => {
+        if (mode === "create" && col.default?.includes("nextval(")) {
+          return draft;
+        }
+
+        const raw = formState[col.column];
+        const kind = getFieldKind(col);
+        if (kind === "checkbox") {
+          draft[col.column] = Boolean(raw);
+          return draft;
+        }
+        if (kind === "number") {
+          draft[col.column] = raw === "" ? null : String(raw);
+          return draft;
+        }
+        if (kind === "json" && typeof raw === "string" && !raw.trim()) {
+          draft[col.column] = null;
+          return draft;
+        }
+
+        draft[col.column] = raw;
+        return draft;
+      }, {});
+      const endpoint = buildTableApiUrl(activeTableName);
+      const requestBody = mode === "create"
+        ? body
+        : { recordId: currentRowId, ...body };
       const res = await fetch(endpoint, {
         method: mode === "create" ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(requestBody),
       });
       const result = await res.json();
       if (!res.ok) throw new Error((result as { error?: string }).error ?? "Unable to save record");
       await refreshTable();
+      setError(null);
       closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save record");
@@ -443,7 +748,11 @@ export function AdminPortal() {
 
   const deleteRecord = async (recordId: string) => {
     try {
-      const res = await fetch(`/api/tables/${activeTableName}/${recordId}`, { method: "DELETE" });
+      const res = await fetch(buildTableApiUrl(activeTableName), {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId }),
+      });
       const result = await res.json();
       if (!res.ok) throw new Error((result as { error?: string }).error ?? "Unable to delete record");
       setDeletePrompt(null);
@@ -464,7 +773,15 @@ export function AdminPortal() {
   };
 
   const updateForm = (column: string, value: string | boolean) => {
-    setFormState((prev) => ({ ...prev, [column]: value }));
+    setFormState((prev) => {
+      const next = { ...prev, [column]: value };
+
+      if (activeTableName === "role_master" && column === "role_name") {
+        next.role_code = normalizeRoleCode(String(value));
+      }
+
+      return next;
+    });
   };
 
   const toggleSection = (title: string) => {
@@ -483,6 +800,13 @@ export function AdminPortal() {
   };
 
   const removeFilter = (id: string) => setFilters((prev) => prev.filter((f) => f.id !== id));
+
+  useEffect(() => {
+    if (activeTableName !== "role_master" || !formOpen) return;
+
+    const nextPermissions = stringifyPermissionMatrix(permissionDraft);
+    setFormState((prev) => (prev.permissions === nextPermissions ? prev : { ...prev, permissions: nextPermissions }));
+  }, [activeTableName, formOpen, permissionDraft]);
 
   // ── shared select class ───────────────────────────────────────────────────
   const selectClass = "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer";
@@ -820,12 +1144,12 @@ export function AdminPortal() {
               </AnimatePresence>
 
               <div className="mt-5 overflow-hidden rounded-[28px] border border-white/75 bg-white/80 shadow-inner">
-                <div className="max-h-[calc(100vh-22rem)] w-full max-w-full overflow-auto hide-scrollbar">
+                <div className="max-h-[calc(100vh-22rem)] w-full max-w-full overflow-auto">
                   <table className="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
                     <thead className="sticky top-0 z-10 bg-[#FFF9F0]/95 backdrop-blur">
                       <tr>
                         {visibleColumns.map((col) => (
-                          <th key={col.column} className="min-w-[10rem] border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">
+                          <th key={col.column} className="min-w-40 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">
                             <div className="flex items-center gap-2">
                               <span>{formatLabel(col.column)}</span>
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
@@ -834,7 +1158,7 @@ export function AdminPortal() {
                             </div>
                           </th>
                         ))}
-                        <th className="min-w-[9rem] border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">Actions</th>
+                        <th className="min-w-36 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">Actions</th>
                       </tr>
                     </thead>
                     <AnimatePresence mode="wait">
@@ -863,11 +1187,11 @@ export function AdminPortal() {
                               className="group border-b border-slate-100 transition hover:bg-[#FFF9F0]"
                             >
                               {visibleColumns.map((col) => (
-                                <td key={col.column} className="min-w-[10rem] max-w-[20rem] border-b border-slate-100 px-4 py-4 align-top text-slate-700">
+                                <td key={col.column} className="min-w-40 max-w-[20rem] border-b border-slate-100 px-4 py-4 align-top text-slate-700">
                                   <div className="wrap-break-word">{formatCellValue(col, row[col.column])}</div>
                                 </td>
                               ))}
-                              <td className="min-w-[9rem] border-b border-slate-100 px-4 py-4 align-top">
+                              <td className="min-w-36 border-b border-slate-100 px-4 py-4 align-top">
                                 <div className="flex gap-2">
                                   <button
                                     type="button"
@@ -949,7 +1273,7 @@ export function AdminPortal() {
 
                 <div className="rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
                   <h3 className="font-display text-2xl font-semibold text-slate-950">Fields</h3>
-                  <p className="mt-1 text-sm text-slate-600">Every column in the selected table is reflected in the generated form.</p>
+                  <p className="mt-1 text-sm text-slate-600">System-generated columns stay out of the editable form, while the rest are reflected here.</p>
                   <div className="mt-4 space-y-3">
                     {visibleColumns.map((col) => (
                       <div key={col.column} className="rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm">
@@ -991,7 +1315,7 @@ export function AdminPortal() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[36px] border border-white/80 bg-[#fffdf8]/96 shadow-[0_40px_120px_rgba(26,79,138,0.22)]"
+              className={`flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[36px] border border-white/80 bg-[#fffdf8]/96 shadow-[0_40px_120px_rgba(26,79,138,0.22)] ${activeTableName === "role_master" ? "max-w-6xl" : "max-w-5xl"}`}
             >
               <div className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-200 px-6 py-5">
                 <div>
@@ -1002,7 +1326,9 @@ export function AdminPortal() {
                     {formatLabel(activeTable.table_name)}
                   </h3>
                   <p className="mt-2 text-sm text-slate-600">
-                    {activeTable.columns.length} columns, {activeTable.foreign_keys.length} relationships, primary key {snapshot.primaryKey ?? activeTable.primary_key[0] ?? "n/a"}.
+                    {activeTableName === "role_master"
+                      ? "Configure ERP access by selecting permissions through controls. The system will generate the JSON internally."
+                      : `${activeTable.columns.length} columns, ${activeTable.foreign_keys.length} relationships, primary key ${snapshot.primaryKey ?? activeTable.primary_key[0] ?? "n/a"}.`}
                   </p>
                 </div>
                 <button
@@ -1015,20 +1341,197 @@ export function AdminPortal() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+                {activeTableName === "role_master" ? (
+                  <div className="flex flex-col gap-5 lg:flex-row">
+                    {/* ── Left: Role Details ──────────────────────────────── */}
+                    <div className="w-full shrink-0 space-y-4 lg:w-[320px]">
+                      <div className="space-y-4 rounded-3xl border border-white/80 bg-white/85 p-5 shadow-sm">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#1A4F8A]">Role Details</p>
+
+                        {mode === "edit" && currentRowId && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-slate-900">Role ID</span>
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">AUTO</span>
+                            </div>
+                            <input value={currentRowId} readOnly className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 outline-none" />
+                            <p className="text-xs text-slate-500">Primary key. Not editable.</p>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-slate-900">Role Name</span>
+                            <span className="rounded-full bg-[#FF6600]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#FF6600]">REQUIRED</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={String(formState.role_name ?? "")}
+                            onChange={(e) => updateForm("role_name", e.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                            placeholder="e.g. Store Manager"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-slate-900">Role Code</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">SYSTEM</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={String(formState.role_code ?? "")}
+                            readOnly
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 outline-none"
+                          />
+                          <p className="text-xs text-slate-500">Generated from role name, or from selected template.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-slate-900">Status</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">SELECT</span>
+                          </div>
+                          <select
+                            value={String(formState.status ?? "active")}
+                            onChange={(e) => updateForm("status", e.target.value)}
+                            className={selectClass}
+                          >
+                            <option value="active">ACTIVE</option>
+                            <option value="inactive">INACTIVE</option>
+                          </select>
+                        </div>
+
+                        <div className="rounded-2xl border-l-4 border-[#FFD700] bg-[#2A7D5F]/10 px-4 py-3 text-sm font-medium leading-relaxed text-[#1b5140]">
+                          Permissions are selected on the right. The JSONB value is generated by the system and saved silently.
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 rounded-3xl border border-white/80 bg-white/85 p-5 shadow-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-slate-900">Generated Permissions JSON</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">READ ONLY</span>
+                        </div>
+                        <textarea
+                          readOnly
+                          value={stringifyPermissionMatrix(permissionDraft)}
+                          rows={10}
+                          className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-xs leading-5 text-slate-600 outline-none"
+                        />
+                        <p className="text-xs text-slate-500">Admin audit view. Not directly editable.</p>
+                      </div>
+                    </div>
+
+                    {/* ── Right: Permission Builder ────────────────────────── */}
+                    <div className="min-w-0 flex-1 rounded-3xl border border-white/80 bg-white/85 p-5 shadow-sm">
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-[#1A4F8A]">Permission Builder</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+                            <button
+                              type="button"
+                              onClick={() => setPermissionMode("custom")}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${permissionMode === "custom" ? "bg-[#1A4F8A] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                            >
+                              Custom
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPermissionMode("template")}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${permissionMode === "template" ? "bg-[#1A4F8A] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                            >
+                              Template
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = createEmptyPermissionMatrix();
+                              for (const module of PERMISSION_MODULES) {
+                                for (const submodule of module.submodules) {
+                                  next[module.name][submodule]["View"] = true;
+                                }
+                              }
+                              setPermissionDraft(next);
+                            }}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-[#1A4F8A] transition hover:bg-slate-50"
+                          >
+                            View Only
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPermissionDraft(createEmptyPermissionMatrix())}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      {permissionMode === "template" ? (
+                        <div className="flex items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 py-16 text-sm text-slate-500">
+                          Role templates coming soon — use Custom mode to build permissions manually.
+                        </div>
+                      ) : (
+                        <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          {PERMISSION_MODULES.map((module) => (
+                            <div key={module.name} className="border-b border-slate-100 last:border-b-0">
+                              <div className="grid grid-cols-[160px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-100 bg-[#1A4F8A]/6 px-4 py-2.5">
+                                <div className="text-sm font-bold text-[#1A4F8A]">{module.name}</div>
+                                {PERMISSION_ACTIONS.map((action) => (
+                                  <div key={action} className={`text-center text-[10px] font-bold uppercase tracking-[0.16em] ${action === "Delete" ? "text-[#FF6600]" : "text-slate-500"}`}>
+                                    {action}
+                                  </div>
+                                ))}
+                              </div>
+                              {module.submodules.map((submodule) => (
+                                <div key={submodule} className="grid grid-cols-[160px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-100 px-4 py-3 last:border-b-0 transition hover:bg-slate-50/50">
+                                  <div className="text-sm font-medium text-slate-800">{submodule}</div>
+                                  {PERMISSION_ACTIONS.map((action) => {
+                                    const checked = Boolean(permissionDraft[module.name]?.[submodule]?.[action]);
+                                    const isDelete = action === "Delete";
+                                    return (
+                                      <label key={action} className="flex items-center justify-center" title={`${action} — ${submodule}`}>
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={(e) => {
+                                            const next = structuredClone(permissionDraft);
+                                            next[module.name][submodule][action] = e.target.checked;
+                                            setPermissionDraft(next);
+                                          }}
+                                          className={`h-[18px] w-[18px] cursor-pointer rounded border-slate-300 transition focus:ring-2 ${isDelete ? "accent-[#FF6600] focus:ring-[#FF6600]/20" : "accent-[#2A7D5F] focus:ring-[#2A7D5F]/20"}`}
+                                        />
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                 <motion.div
                   className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
                   variants={FIELD_STAGGER_PARENT}
                   initial="initial"
                   animate="animate"
                 >
-                  {visibleColumns.map((column) => {
+                  {visibleColumns.filter((column) => shouldShowInCreateForm(column, activeTable.table_name)).map((column) => {
                     const kind      = getFieldKind(column);
-                    const readOnly  = mode === "create" && Boolean(column.default?.includes("nextval("));
+                    const isDepartmentShortCode = activeTable.table_name === "department_master" && column.column === "department_short_code";
+                    const isRolePermissionsField = activeTable.table_name === "role_master" && column.column === "permissions";
+                    const readOnly  = isLockedGeneratedField(activeTable.table_name, column.column) || (mode === "create" && Boolean(column.default?.includes("nextval(")));
                     const value     = formState[column.column] ?? "";
                     const inputValue = inputValueForField(column, value);
 
                     const fkOpts       = fkOptions[column.column];
+                    const isFkColumn   = activeTable.foreign_keys.some((fk) => fk.column === column.column);
                     const hasFkOptions = Array.isArray(fkOpts) && fkOpts.length > 0;
+                    const isGeoField = ["country", "country_code", "state", "state_code", "city"].includes(column.column);
 
                     let geoOpts: FkOption[] | null = null;
                     if (!hasFkOptions && kind === "text") {
@@ -1040,11 +1543,15 @@ export function AdminPortal() {
                         geoOpts = geoStates.map((s) => ({ value: s.name, label: s.name }));
                       else if (column.column === "state_code" && geoStates.length > 0)
                         geoOpts = geoStates.map((s) => ({ value: s.iso2, label: `${s.iso2} — ${s.name}` }));
+                      else if (column.column === "city")
+                        geoOpts = geoCities.map((city) => ({ value: city.name, label: city.name }));
                     }
                     const hasGeoOptions = Array.isArray(geoOpts) && geoOpts.length > 0;
+                    const useGeoSelect = isGeoField || hasGeoOptions;
+                    const geoSelectOptions = geoOpts ?? [];
 
                     const staticOpts   = STATIC_ENUM_OPTIONS[column.column];
-                    const hasStaticOpts = !hasFkOptions && !hasGeoOptions && Array.isArray(staticOpts) && staticOpts.length > 0 && kind === "text";
+                    const hasStaticOpts = !isFkColumn && !useGeoSelect && Array.isArray(staticOpts) && staticOpts.length > 0 && kind === "text";
 
                     return (
                       <motion.label
@@ -1071,6 +1578,84 @@ export function AdminPortal() {
                             />
                             <span className="text-sm text-slate-600">Toggle value</span>
                           </div>
+                        ) : isRolePermissionsField ? (
+                          <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">Permission Builder</p>
+                                <p className="text-xs text-slate-500">Structured module and workflow toggles save into the JSONB permissions column internally.</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = createEmptyPermissionMatrix();
+                                    for (const module of PERMISSION_MODULES) {
+                                      for (const submodule of module.submodules) {
+                                        next[module.name][submodule].View = true;
+                                      }
+                                    }
+                                    setPermissionDraft(next);
+                                  }}
+                                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  View Only
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPermissionDraft(createEmptyPermissionMatrix())}
+                                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="overflow-hidden rounded-3xl border border-white/80 bg-white shadow-sm">
+                              <div className="grid grid-cols-[210px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-200 bg-[#1A4F8A]/6 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                                <div>Module / Sub-module</div>
+                                {PERMISSION_ACTIONS.map((action) => <div key={action} className="text-center">{action}</div>)}
+                              </div>
+
+                              <div className="space-y-2 p-3">
+                                {PERMISSION_MODULES.map((module) => (
+                                  <div key={module.name} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                                    <div className="grid grid-cols-[210px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-200 bg-[#1A4F8A]/8 px-4 py-3">
+                                      <div className="text-sm font-semibold text-[#1A4F8A]">{module.name}</div>
+                                      <div className="col-span-8 text-xs text-slate-500">Select module permissions below</div>
+                                    </div>
+
+                                    {module.submodules.map((submodule) => (
+                                      <div key={submodule} className="grid grid-cols-[210px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-100 px-4 py-3 last:border-b-0">
+                                        <div className="text-sm font-medium text-slate-900">{submodule}</div>
+                                        {PERMISSION_ACTIONS.map((action) => {
+                                          const checked = Boolean(permissionDraft[module.name]?.[submodule]?.[action]);
+                                          return (
+                                            <label key={action} className="flex items-center justify-center">
+                                              <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={(event) => {
+                                                  const next = structuredClone(permissionDraft);
+                                                  next[module.name][submodule][action] = event.target.checked;
+                                                  setPermissionDraft(next);
+                                                }}
+                                                className="h-4 w-4 rounded border-slate-300 text-[#2A7D5F] focus:ring-[#2A7D5F]"
+                                              />
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <pre className="max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-slate-950 px-4 py-3 text-xs leading-5 text-slate-100">
+                              {stringifyPermissionMatrix(permissionDraft)}
+                            </pre>
+                          </div>
                         ) : kind === "json" ? (
                           <textarea
                             rows={5}
@@ -1080,15 +1665,15 @@ export function AdminPortal() {
                             className="min-h-32 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
                             placeholder={column.default ? `Default: ${column.default}` : "{}"}
                           />
-                        ) : hasFkOptions ? (
+                        ) : isFkColumn ? (
                           <select value={String(inputValue)} disabled={readOnly} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
-                            <option value="">— Select —</option>
-                            {fkOpts.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            <option value="">{hasFkOptions ? "— Select —" : "No eligible options"}</option>
+                            {fkOpts?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
-                        ) : hasGeoOptions ? (
-                          <select value={String(inputValue)} disabled={readOnly} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
-                            <option value="">— Select —</option>
-                            {geoOpts!.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                          ) : useGeoSelect ? (
+                          <select value={String(inputValue)} disabled={readOnly || (column.column === "city" && !selectedStateCode)} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
+                            <option value="">{column.column === "city" && !selectedStateCode ? "Select a state first" : "— Select —"}</option>
+                              {geoSelectOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
                         ) : hasStaticOpts ? (
                           <select value={String(inputValue)} disabled={readOnly} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
@@ -1100,20 +1685,27 @@ export function AdminPortal() {
                             type={kind === "datetime" ? "datetime-local" : kind === "date" ? "date" : kind === "time" ? "time" : kind === "number" ? "number" : "text"}
                             value={String(inputValue)}
                             readOnly={readOnly}
-                            onChange={(e) => updateForm(column.column, toInputValue(column, e.target.value))}
+                            onChange={(e) => {
+                              const nextValue = isDepartmentShortCode ? normalizeDepartmentShortCode(e.target.value) : e.target.value;
+                              updateForm(column.column, toInputValue(column, nextValue));
+                            }}
                             className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
                             placeholder={column.default ? `Default: ${column.default}` : undefined}
+                            maxLength={isDepartmentShortCode ? 3 : undefined}
+                            pattern={isDepartmentShortCode ? "[A-Z]{3}" : undefined}
                           />
                         )}
 
                         <p className="text-xs text-slate-500">
                           {column.nullable ? "Optional field." : "Required field."}
+                          {isDepartmentShortCode ? " Enter exactly 3 uppercase letters." : ""}
                           {readOnly ? " Auto-generated by the database." : ""}
                         </p>
                       </motion.label>
                     );
                   })}
                 </motion.div>
+                )}
               </div>
 
               <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-200 bg-[#fffdf8]/96 px-6 py-5">
