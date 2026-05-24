@@ -79,7 +79,7 @@ function getOrderColumn(table: TableDefinition) {
   return getPrimaryKey(table) ?? table.columns[0]?.column ?? "";
 }
 
-function buildWhereClause(table: TableDefinition, recordId: string) {
+function buildWhereClause(table: TableDefinition, recordId: string, paramOffset = 0) {
   const primaryKey = getPrimaryKey(table);
   if (!primaryKey) {
     throw new Error(`Table ${table.table_name} does not have a primary key`);
@@ -89,7 +89,7 @@ function buildWhereClause(table: TableDefinition, recordId: string) {
   const value = normalizeValue(pkColumn ?? table.columns[0], recordId);
 
   return {
-    where: `${quoteIdentifier(primaryKey)} = $1`,
+    where: `${quoteIdentifier(primaryKey)} = $${paramOffset + 1}`,
     values: [value],
   };
 }
@@ -155,7 +155,7 @@ export async function updateTableRow(tableName: string, recordId: string, input:
 
   const assignments = columns.map((column, index) => `${quoteIdentifier(column)} = $${index + 1}`);
   const values = columns.map((column) => payload[column]);
-  const where = buildWhereClause(table, recordId);
+  const where = buildWhereClause(table, recordId, columns.length);
 
   const result = await pool.query(
     `update ${quoteIdentifier(table.table_name)} set ${assignments.join(", ")} where ${where.where} returning *`,

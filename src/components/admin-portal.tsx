@@ -42,6 +42,21 @@ type Mode = "create" | "edit";
 type FilterRule = { id: string; column: string; operator: string; value: string };
 type PermissionMatrix = Record<string, Record<string, Record<string, boolean>>>;
 
+// ─── employee category mapping ───────────────────────────────────────────────
+
+const EMPLOYEE_CATEGORY_MAP: Record<string, string> = {
+  RETAIL:     "RET",
+  GROOMING:   "GRO",
+  MEDICAL:    "MED",
+  BOARDING:   "BOA",
+  TRAINING:   "TRA",
+  DELIVERY:   "DEL",
+  MEMBERSHIP: "MEM",
+};
+const EMPLOYEE_CATEGORY_BY_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(EMPLOYEE_CATEGORY_MAP).map(([name, code]) => [code, name]),
+);
+
 // ─── static enum options ─────────────────────────────────────────────────────
 
 const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
@@ -79,6 +94,9 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   severity: ["info", "warning", "error", "critical"],
   co_type: ["weekly_off_working", "holiday_working"],
   co_credit_trigger: ["attendance", "manual"],
+  grade_code: ["A", "B", "C", "D"],
+  category_name: Object.keys(EMPLOYEE_CATEGORY_MAP),
+  category_code: Object.values(EMPLOYEE_CATEGORY_MAP),
   country: ["India", "USA", "UK", "UAE", "Singapore", "Other"],
   state: [
     "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -447,15 +465,6 @@ export function AdminPortal() {
     [activeTableName],
   );
 
-  const sectionStats = useMemo(
-    () => ({
-      tables: visiblePortalTables.length,
-      fields: visiblePortalTables.reduce((n, t) => n + t.columns.length, 0),
-      relationships: visiblePortalTables.reduce((n, t) => n + t.foreign_keys.length, 0),
-      sections: portalSections.length,
-    }),
-    [],
-  );
 
   // Sync URL → state once on mount
   useEffect(() => {
@@ -778,6 +787,14 @@ export function AdminPortal() {
 
       if (activeTableName === "role_master" && column === "role_name") {
         next.role_code = normalizeRoleCode(String(value));
+      }
+
+      if (activeTableName === "employee_category_master") {
+        if (column === "category_name") {
+          next.category_code = EMPLOYEE_CATEGORY_MAP[String(value)] ?? next.category_code;
+        } else if (column === "category_code") {
+          next.category_name = EMPLOYEE_CATEGORY_BY_CODE[String(value)] ?? next.category_name;
+        }
       }
 
       return next;
@@ -1568,15 +1585,23 @@ export function AdminPortal() {
                         <p className="text-xs text-slate-500">{formatTypeLabel(column.type)}</p>
 
                         {kind === "checkbox" ? (
-                          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(inputValue)}
+                          <div className="flex gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
+                            <button
+                              type="button"
                               disabled={readOnly}
-                              onChange={(e) => updateForm(column.column, e.target.checked)}
-                              className="h-4 w-4 rounded border-slate-300 text-[#1A4F8A] focus:ring-[#1A4F8A]"
-                            />
-                            <span className="text-sm text-slate-600">Toggle value</span>
+                              onClick={() => updateForm(column.column, true)}
+                              className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${Boolean(inputValue) ? "bg-[#2A7D5F] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              disabled={readOnly}
+                              onClick={() => updateForm(column.column, false)}
+                              className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${!Boolean(inputValue) ? "bg-rose-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                            >
+                              No
+                            </button>
                           </div>
                         ) : isRolePermissionsField ? (
                           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-4">
