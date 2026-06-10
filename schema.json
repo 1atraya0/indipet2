@@ -112,6 +112,18 @@
         "type": "numeric",
         "nullable": true,
         "default": null
+      },
+      {
+        "column": "worked_hours",
+        "type": "numeric",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "updated_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "now()"
       }
     ],
     "foreign_keys": [
@@ -126,14 +138,14 @@
         "references_column": "leave_type_id"
       },
       {
-        "column": "roster_slot_id",
-        "references_table": "roster_slots",
-        "references_column": "slot_id"
-      },
-      {
         "column": "roster_id",
         "references_table": "roster",
         "references_column": "roster_id"
+      },
+      {
+        "column": "roster_slot_id",
+        "references_table": "roster_slots",
+        "references_column": "slot_id"
       }
     ]
   },
@@ -188,14 +200,14 @@
     ],
     "foreign_keys": [
       {
-        "column": "employee_id",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
-      },
-      {
         "column": "source_attendance_id",
         "references_table": "attendance",
         "references_column": "attendance_id"
+      },
+      {
+        "column": "employee_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
       }
     ]
   },
@@ -269,12 +281,6 @@
         "default": "nextval('department_master_department_id_seq'::regclass)"
       },
       {
-        "column": "department_short_code",
-        "type": "character varying",
-        "nullable": false,
-        "default": null
-      },
-      {
         "column": "department_code",
         "type": "character varying",
         "nullable": true,
@@ -302,6 +308,12 @@
         "column": "status",
         "type": "character varying",
         "nullable": true,
+        "default": null
+      },
+      {
+        "column": "department_short_code",
+        "type": "character varying",
+        "nullable": false,
         "default": null
       }
     ],
@@ -344,7 +356,7 @@
         "default": null
       },
       {
-        "column": "override_level",
+        "column": "override_grade_code",
         "type": "character varying",
         "nullable": true,
         "default": null
@@ -373,6 +385,117 @@
         "column": "department_id",
         "references_table": "department_master",
         "references_column": "department_id"
+      }
+    ]
+  },
+  {
+    "table_name": "employee_address",
+    "primary_key": [
+      "employee_address_id"
+    ],
+    "columns": [
+      {
+        "column": "employee_address_id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "is_same_as_present",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "column": "present_address_line1",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "present_address_line2",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "present_country",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "present_state",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "present_city",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "present_pincode",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "permanent_address_line1",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "permanent_address_line2",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "permanent_country",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "permanent_state",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "permanent_city",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "permanent_pincode",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "status",
+        "type": "text",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "employee_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
       }
     ]
   },
@@ -558,6 +681,87 @@
         "type": "boolean",
         "nullable": true,
         "default": null
+      },
+      {
+        "column": "document_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "verification_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "document_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "employee_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
+      }
+    ]
+  },
+  {
+    "table_name": "employee_emergency_contact",
+    "primary_key": [
+      "emergency_contact_id"
+    ],
+    "columns": [
+      {
+        "column": "emergency_contact_id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('employee_emergency_contact_emergency_contact_id_seq'::regclass)"
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "contact_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "relationship",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "phone",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "alternate_phone",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "is_primary",
+        "type": "boolean",
+        "nullable": true,
+        "default": "false"
+      },
+      {
+        "column": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": "'Active'::character varying"
       }
     ],
     "foreign_keys": [
@@ -603,6 +807,57 @@
         "type": "boolean",
         "nullable": true,
         "default": null
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "employee_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
+      }
+    ]
+  },
+  {
+    "table_name": "employee_face_captures",
+    "primary_key": [
+      "sample_id"
+    ],
+    "columns": [
+      {
+        "column": "sample_id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('employee_face_captures_sample_id_seq'::regclass)"
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "column": "capture_index",
+        "type": "integer",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "column": "image_data_url",
+        "type": "text",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "column": "descriptor",
+        "type": "jsonb",
+        "nullable": false,
+        "default": null
+      },
+      {
+        "column": "captured_at",
+        "type": "timestamp with time zone",
+        "nullable": false,
+        "default": "now()"
       }
     ],
     "foreign_keys": [
@@ -853,24 +1108,9 @@
     ],
     "foreign_keys": [
       {
-        "column": "reporting_manager_id",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
-      },
-      {
-        "column": "parent_entity_id",
-        "references_table": "parent_entity",
-        "references_column": "entity_id"
-      },
-      {
-        "column": "location_id",
-        "references_table": "sub_location",
-        "references_column": "location_id"
-      },
-      {
-        "column": "designation_id",
-        "references_table": "designation_master",
-        "references_column": "designation_id"
+        "column": "default_shift_id",
+        "references_table": "shift_policy_master",
+        "references_column": "policy_id"
       },
       {
         "column": "department_id",
@@ -878,14 +1118,104 @@
         "references_column": "department_id"
       },
       {
-        "column": "default_shift_id",
-        "references_table": "shift_policy_master",
-        "references_column": "policy_id"
+        "column": "designation_id",
+        "references_table": "designation_master",
+        "references_column": "designation_id"
+      },
+      {
+        "column": "location_id",
+        "references_table": "sub_location",
+        "references_column": "location_id"
+      },
+      {
+        "column": "parent_entity_id",
+        "references_table": "parent_entity",
+        "references_column": "entity_id"
+      },
+      {
+        "column": "reporting_manager_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
       },
       {
         "column": "role_id",
         "references_table": "role_master",
         "references_column": "role_id"
+      }
+    ]
+  },
+  {
+    "table_name": "employee_profile",
+    "primary_key": [
+      "profile_id"
+    ],
+    "columns": [
+      {
+        "column": "profile_id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('employee_profile_profile_id_seq'::regclass)"
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "date_of_birth",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "marital_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "blood_group",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "father_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "mother_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "spouse_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "nationality",
+        "type": "character varying",
+        "nullable": true,
+        "default": "'Indian'::character varying"
+      },
+      {
+        "column": "profile_status",
+        "type": "character varying",
+        "nullable": true,
+        "default": "'Partial'::character varying"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "employee_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
       }
     ]
   },
@@ -1031,6 +1361,93 @@
     ]
   },
   {
+    "table_name": "employee_statutory",
+    "primary_key": [
+      "statutory_id"
+    ],
+    "columns": [
+      {
+        "column": "statutory_id",
+        "type": "integer",
+        "nullable": false,
+        "default": "nextval('employee_statutory_statutory_id_seq'::regclass)"
+      },
+      {
+        "column": "employee_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "aadhaar_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "pan_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "uan_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "pf_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "esi_number",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "professional_tax_state",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "nominee_name",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "nominee_relation",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "nominee_phone",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "status",
+        "type": "character varying",
+        "nullable": true,
+        "default": "'Active'::character varying"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "column": "employee_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
+      }
+    ]
+  },
+  {
     "table_name": "employee_transfer_history",
     "primary_key": [
       "transfer_id"
@@ -1074,12 +1491,12 @@
         "references_column": "employee_id"
       },
       {
-        "column": "to_location_id",
+        "column": "from_location_id",
         "references_table": "sub_location",
         "references_column": "location_id"
       },
       {
-        "column": "from_location_id",
+        "column": "to_location_id",
         "references_table": "sub_location",
         "references_column": "location_id"
       }
@@ -1777,14 +2194,14 @@
     ],
     "foreign_keys": [
       {
-        "column": "shift_policy_id",
-        "references_table": "shift_policy_master",
-        "references_column": "policy_id"
-      },
-      {
         "column": "location_id",
         "references_table": "sub_location",
         "references_column": "location_id"
+      },
+      {
+        "column": "shift_policy_id",
+        "references_table": "shift_policy_master",
+        "references_column": "policy_id"
       }
     ]
   },
@@ -1809,7 +2226,7 @@
       {
         "column": "service_code",
         "type": "character varying",
-        "nullable": false,
+        "nullable": true,
         "default": null
       },
       {
@@ -1827,6 +2244,11 @@
     ],
     "foreign_keys": [
       {
+        "column": "activated_by",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
+      },
+      {
         "column": "location_id",
         "references_table": "sub_location",
         "references_column": "location_id"
@@ -1835,11 +2257,6 @@
         "column": "service_code",
         "references_table": "service_type_master",
         "references_column": "service_code"
-      },
-      {
-        "column": "activated_by",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
       }
     ]
   },
@@ -1908,7 +2325,7 @@
       {
         "column": "entity_code",
         "type": "character varying",
-        "nullable": true,
+        "nullable": false,
         "default": null
       },
       {
@@ -2010,6 +2427,12 @@
       {
         "column": "status",
         "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "entity_role",
+        "type": "text",
         "nullable": true,
         "default": null
       }
@@ -2220,6 +2643,12 @@
         "default": null
       },
       {
+        "column": "start_date",
+        "type": "date",
+        "nullable": true,
+        "default": null
+      },
+      {
         "column": "end_date",
         "type": "date",
         "nullable": true,
@@ -2354,14 +2783,14 @@
     ],
     "foreign_keys": [
       {
-        "column": "target_location_id",
-        "references_table": "sub_location",
-        "references_column": "location_id"
-      },
-      {
         "column": "target_department_id",
         "references_table": "department_master",
         "references_column": "department_id"
+      },
+      {
+        "column": "target_designation_id",
+        "references_table": "designation_master",
+        "references_column": "designation_id"
       },
       {
         "column": "target_employee_id",
@@ -2369,9 +2798,9 @@
         "references_column": "employee_id"
       },
       {
-        "column": "target_designation_id",
-        "references_table": "designation_master",
-        "references_column": "designation_id"
+        "column": "target_location_id",
+        "references_table": "sub_location",
+        "references_column": "location_id"
       },
       {
         "column": "policy_id",
@@ -2534,9 +2963,21 @@
         "type": "character varying",
         "nullable": true,
         "default": null
+      },
+      {
+        "column": "location_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
       }
     ],
-    "foreign_keys": []
+    "foreign_keys": [
+      {
+        "column": "location_id",
+        "references_table": "sub_location",
+        "references_column": "location_id"
+      }
+    ]
   },
   {
     "table_name": "roster",
@@ -2693,14 +3134,14 @@
     ],
     "foreign_keys": [
       {
-        "column": "roster_id",
-        "references_table": "roster",
-        "references_column": "roster_id"
-      },
-      {
         "column": "location_id",
         "references_table": "sub_location",
         "references_column": "location_id"
+      },
+      {
+        "column": "roster_id",
+        "references_table": "roster",
+        "references_column": "roster_id"
       }
     ]
   },
@@ -2779,12 +3220,12 @@
     ],
     "foreign_keys": [
       {
-        "column": "original_employee_id",
+        "column": "employee_id",
         "references_table": "employee_master",
         "references_column": "employee_id"
       },
       {
-        "column": "employee_id",
+        "column": "original_employee_id",
         "references_table": "employee_master",
         "references_column": "employee_id"
       },
@@ -2849,7 +3290,7 @@
       {
         "column": "service_code",
         "type": "character varying",
-        "nullable": true,
+        "nullable": false,
         "default": null
       },
       {
@@ -2877,14 +3318,14 @@
         "default": null
       },
       {
-        "column": "linked_department_id",
-        "type": "integer",
+        "column": "linked_department_code",
+        "type": "character varying",
         "nullable": true,
         "default": null
       },
       {
-        "column": "linked_department_code",
-        "type": "character varying",
+        "column": "linked_department_id",
+        "type": "integer",
         "nullable": true,
         "default": null
       }
@@ -3074,11 +3515,6 @@
     ],
     "foreign_keys": [
       {
-        "column": "primary_keyholder_id",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
-      },
-      {
         "column": "backup_keyholder_id",
         "references_table": "employee_master",
         "references_column": "employee_id"
@@ -3087,6 +3523,11 @@
         "column": "location_id",
         "references_table": "sub_location",
         "references_column": "location_id"
+      },
+      {
+        "column": "primary_keyholder_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
       }
     ]
   },
@@ -3307,18 +3748,6 @@
         "default": null
       },
       {
-        "column": "primary_keyholder_id",
-        "type": "integer",
-        "nullable": true,
-        "default": null
-      },
-      {
-        "column": "backup_keyholder_id",
-        "type": "integer",
-        "nullable": true,
-        "default": null
-      },
-      {
         "column": "onboarding_status",
         "type": "character varying",
         "nullable": true,
@@ -3329,13 +3758,25 @@
         "type": "character varying",
         "nullable": true,
         "default": null
+      },
+      {
+        "column": "primary_keyholder_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "backup_keyholder_id",
+        "type": "integer",
+        "nullable": true,
+        "default": null
       }
     ],
     "foreign_keys": [
       {
-        "column": "state_code",
-        "references_table": "state_master",
-        "references_column": "state_code"
+        "column": "area_manager_id",
+        "references_table": "employee_master",
+        "references_column": "employee_id"
       },
       {
         "column": "parent_entity_id",
@@ -3343,19 +3784,9 @@
         "references_column": "entity_id"
       },
       {
-        "column": "area_manager_id",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
-      },
-      {
-        "column": "primary_keyholder_id",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
-      },
-      {
-        "column": "backup_keyholder_id",
-        "references_table": "employee_master",
-        "references_column": "employee_id"
+        "column": "state_code",
+        "references_table": "state_master",
+        "references_column": "state_code"
       }
     ]
   }

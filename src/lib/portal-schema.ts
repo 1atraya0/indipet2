@@ -61,6 +61,7 @@ export const portalSections: PortalSection[] = [
     accent: "#2A7D5F",
     tables: [
       "employee_master",
+      "employee_address",
       "employee_finance",
       "employee_bank_history",
       "employee_skills",
@@ -69,6 +70,10 @@ export const portalSections: PortalSection[] = [
       "employee_salary_history",
       "employee_documents",
       "employee_audit_log",
+      "employee_emergency_contact",
+      "employee_face_captures",
+      "employee_profile",
+      "employee_statutory",
     ],
   },
   {
@@ -196,6 +201,26 @@ export function shouldShowInCreateForm(column: ColumnDefinition, tableName?: str
   }
 
   if (tableName === "department_master" && ["department_code", "revenue_centre_code"].includes(column.column)) {
+    return false;
+  }
+
+  if (tableName === "employee_category_master" && column.column === "category_code") {
+    return false;
+  }
+
+  if (tableName === "leave_policy_master" && column.column === "policy_code") {
+    return false;
+  }
+
+  if (tableName === "policy_variant" && column.column === "variant_code") {
+    return false;
+  }
+
+  if (tableName === "roster" && column.column === "available_staff_count") {
+    return false;
+  }
+
+  if (tableName === "role_master" && column.column === "role_code") {
     return false;
   }
 

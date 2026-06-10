@@ -123,7 +123,7 @@
         "designation_name",
         "department_id",
         "grade_code",
-        "override_level",
+        "override_grade_code",
         "is_keyholder_eligible",
         "is_salesperson_eligible",
         "status"
@@ -133,7 +133,7 @@
         "designation_name",
         "department_id",
         "grade_code",
-        "override_level",
+        "override_grade_code",
         "is_keyholder_eligible",
         "is_salesperson_eligible",
         "status"
@@ -161,6 +161,47 @@
       ],
       "create_hidden": [
         "log_id"
+      ]
+    },
+    "employee_address": {
+      "column_count": 16,
+      "columns": [
+        "employee_address_id",
+        "employee_id",
+        "same_address",
+        "present_address_line1",
+        "present_address_line2",
+        "present_country",
+        "present_state",
+        "present_city",
+        "present_pincode",
+        "permanent_address_line1",
+        "permanent_address_line2",
+        "permanent_country",
+        "permanent_state",
+        "permanent_city",
+        "permanent_pincode",
+        "status"
+      ],
+      "create_shown": [
+        "employee_id",
+        "same_address",
+        "present_address_line1",
+        "present_address_line2",
+        "present_country",
+        "present_state",
+        "present_city",
+        "present_pincode",
+        "permanent_address_line1",
+        "permanent_address_line2",
+        "permanent_country",
+        "permanent_state",
+        "permanent_city",
+        "permanent_pincode",
+        "status"
+      ],
+      "create_hidden": [
+        "employee_address_id"
       ]
     },
     "employee_bank_history": {
@@ -731,12 +772,13 @@
       ]
     },
     "parent_entity": {
-      "column_count": 19,
+      "column_count": 20,
       "columns": [
         "entity_id",
         "entity_code",
         "legal_name",
         "entity_type",
+        "entity_role",
         "gstin",
         "gst_type",
         "pan_number",
@@ -757,6 +799,7 @@
         "entity_code",
         "legal_name",
         "entity_type",
+        "entity_role",
         "gstin",
         "gst_type",
         "pan_number",

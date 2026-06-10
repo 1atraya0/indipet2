@@ -16,6 +16,7 @@ import {
   type ColumnDefinition,
   type TableDefinition,
 } from "@/lib/portal-schema";
+import { isHighPowerAction } from "@/lib/grade-policy";
 
 const visiblePortalTableNames = new Set(portalSections.flatMap((section) => section.tables));
 const visiblePortalTables = allTables.filter((table) => visiblePortalTableNames.has(table.table_name));
@@ -79,6 +80,8 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   applicable_to: ["all", "male", "female", "permanent", "contractual"],
   assignment_level: ["organization", "location", "department", "designation", "employee"],
   override_direction: ["increase", "decrease"],
+  override_grade_code: ["A", "B", "C", "D"],
+  entity_role: ["hq", "company_owned", "franchisee"],
   slot_type: ["regular", "split", "overtime"],
   slot_status: ["scheduled", "confirmed", "cancelled"],
   roster_status: ["draft", "published", "archived"],
@@ -95,7 +98,6 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   co_type: ["weekly_off_working", "holiday_working"],
   co_credit_trigger: ["attendance", "manual"],
   grade_code: ["A", "B", "C", "D"],
-  category_name: Object.keys(EMPLOYEE_CATEGORY_MAP),
   category_code: Object.values(EMPLOYEE_CATEGORY_MAP),
   country: ["India", "USA", "UK", "UAE", "Singapore", "Other"],
   state: [
@@ -283,6 +285,26 @@ function isLockedGeneratedField(tableName: string, columnName: string) {
     return columnName === "role_code";
   }
 
+  if (tableName === "employee_category_master" && columnName === "category_code") {
+    return true;
+  }
+
+  if (tableName === "sub_location" && columnName === "location_code") {
+    return true;
+  }
+
+  if (tableName === "leave_policy_master" && columnName === "policy_code") {
+    return true;
+  }
+
+  if (tableName === "policy_variant" && columnName === "variant_code") {
+    return true;
+  }
+
+  if (tableName === "roster" && columnName === "available_staff_count") {
+    return true;
+  }
+
   return false;
 }
 
@@ -297,6 +319,116 @@ function normalizeDateTime(v: string) {
 }
 function normalizeDate(v: string) { return v ? v.slice(0, 10) : ""; }
 function normalizeTime(v: string) { return v ? v.slice(0, 5) : ""; }
+
+function getGeoStateCode(stateName: string, geoStates: GeoState[]) {
+  const normalizedStateName = String(stateName ?? "").trim();
+  if (!normalizedStateName) return "";
+
+  return geoStates.find((state) => state.name === normalizedStateName)?.iso2 ?? "";
+}
+
+function getAddressGeoInfo(columnName: string) {
+  const match = columnName.match(/^(present|permanent)_(country|country_code|state|state_code|city)$/);
+  if (!match) return null;
+
+  return {
+    prefix: match[1] as "present" | "permanent",
+    kind: match[2] as "country" | "country_code" | "state" | "state_code" | "city",
+  };
+}
+
+function getFormFieldPriority(tableName: string, columnName: string) {
+  const geoPriority: Record<string, number> = {
+    country: 100,
+    country_code: 100,
+    state: 110,
+    state_code: 110,
+    city: 120,
+  };
+
+  const parentEntityPriority: Record<string, number> = {
+    legal_name: 10,
+    entity_type: 20,
+    entity_role: 30,
+    gstin: 40,
+    gst_type: 50,
+    pan_number: 60,
+    cin_number: 70,
+    phone: 80,
+    email: 90,
+    address_line1: 100,
+    address_line2: 110,
+    pincode: 130,
+    commission_on_products: 140,
+    commission_on_services: 150,
+    status: 160,
+  };
+
+  const employeeAddressPriority: Record<string, number> = {
+    employee_id: 10,
+    same_address: 20,
+    present_country: 30,
+    present_state: 40,
+    present_city: 50,
+    present_pincode: 60,
+    present_address_line1: 70,
+    present_address_line2: 80,
+    permanent_country: 90,
+    permanent_state: 100,
+    permanent_city: 110,
+    permanent_pincode: 120,
+    permanent_address_line1: 130,
+    permanent_address_line2: 140,
+    status: 200,
+  };
+
+  const employeePriority: Record<string, number> = {
+    parent_entity_id: 10,
+    location_id: 20,
+    department_id: 30,
+    designation_id: 40,
+    role_id: 50,
+    reporting_manager_id: 60,
+    employee_category: 70,
+    date_of_joining: 80,
+    original_doj: 90,
+    login_id: 100,
+    shift_preference_mode: 110,
+    default_shift_id: 120,
+    status: 200,
+  };
+
+  const subLocationPriority: Record<string, number> = {
+    parent_entity_id: 10,
+    location_name: 20,
+    location_type: 30,
+    country: 100,
+    state: 110,
+    city: 120,
+    pincode: 130,
+    status: 200,
+  };
+
+  const tableSpecificPriority: Record<string, Record<string, number>> = {
+    parent_entity: parentEntityPriority,
+    employee_address: employeeAddressPriority,
+    employee_master: employeePriority,
+    sub_location: subLocationPriority,
+  };
+
+  return tableSpecificPriority[tableName]?.[columnName] ?? geoPriority[columnName] ?? 1000;
+}
+
+function compareFormFields(tableName: string, left: ColumnDefinition, right: ColumnDefinition, leftIndex: number, rightIndex: number) {
+  const leftPriority = getFormFieldPriority(tableName, left.column);
+  const rightPriority = getFormFieldPriority(tableName, right.column);
+
+  if (leftPriority !== rightPriority) {
+    return leftPriority - rightPriority;
+  }
+
+  return leftIndex - rightIndex;
+}
 
 function parseGstin(gstin: string) {
   const normalized = gstin.trim().toUpperCase();
@@ -408,10 +540,16 @@ export function AdminPortal() {
   const [currentRowId, setCurrentRowId]       = useState<string | null>(null);
   const [submitting, setSubmitting]           = useState(false);
   const [deletePrompt, setDeletePrompt]       = useState<string | null>(null);
+  const [notice, setNotice]                     = useState<string | null>(null);
+  const [employeeCountMap, setEmployeeCountMap] = useState<Record<string, number>>({});
+  const [expandedPerms, setExpandedPerms] = useState<Set<string>>(new Set());
   const [fkOptions, setFkOptions]             = useState<Record<string, FkOption[]>>({});
+  const [fkLabelMap, setFkLabelMap]           = useState<Record<string, Record<string, string>>>({});
   const [geoCountries, setGeoCountries]       = useState<GeoCountry[]>([]);
   const [geoStates, setGeoStates]             = useState<GeoState[]>([]);
   const [geoCities, setGeoCities]             = useState<GeoCity[]>([]);
+  const [presentGeoCities, setPresentGeoCities] = useState<GeoCity[]>([]);
+  const [permanentGeoCities, setPermanentGeoCities] = useState<GeoCity[]>([]);
   const [filters, setFilters]                 = useState<FilterRule[]>([]);
   const [filterOpen, setFilterOpen]           = useState(false);
   const [draftCol, setDraftCol]               = useState("");
@@ -420,6 +558,74 @@ export function AdminPortal() {
   const lastSelectedStateCodeRef = useRef("");
   const [permissionDraft, setPermissionDraft] = useState<PermissionMatrix>(createEmptyPermissionMatrix());
   const [permissionMode, setPermissionMode]   = useState<"custom" | "template">("custom");
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
+  const locationDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!locationDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(e.target as Node)) {
+        setLocationDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [locationDropdownOpen]);
+
+  useEffect(() => {
+    const tables = ["shift_policy_master", "roster"];
+    if (!tables.includes(activeTableName ?? "")) return;
+    const locId = String(formState.location_id ?? "").trim();
+    if (!locId) return;
+
+    fetch("/api/table-data?table=location_operating_hours&limit=20")
+      .then((r) => r.json())
+      .then((data) => {
+        const monday = (data.rows ?? []).find(
+          (r: Record<string, unknown>) =>
+            String(r.location_id) === locId && r.day_of_week === 1,
+        );
+        if (!monday) return;
+        const openTime = (monday.operational_open_time as string)?.substring(0, 5);
+        const closeTime = (monday.operational_close_time as string)?.substring(0, 5);
+        if (!openTime && !closeTime) return;
+        setFormState((prev) => ({
+          ...prev,
+          ...(activeTableName === "shift_policy_master"
+            ? {
+                shift_start_time: openTime ?? prev.shift_start_time,
+                shift_end_time: closeTime ?? prev.shift_end_time,
+              }
+            : {
+                effective_open_time: openTime ?? prev.effective_open_time,
+                effective_close_time: closeTime ?? prev.effective_close_time,
+              }),
+        }));
+      })
+      .catch(() => {});
+
+    if (activeTableName === "roster") {
+      fetch("/api/table-data?table=employee_master&limit=500")
+        .then((r) => r.json())
+        .then((data) => {
+          const count = (data.rows ?? []).filter(
+            (e: Record<string, unknown>) => String(e.location_id) === locId,
+          ).length;
+          setFormState((prev) => ({
+            ...prev,
+            available_staff_count: count,
+          }));
+        })
+        .catch(() => {});
+    }
+  }, [activeTableName, formState.location_id]);
+
+  useEffect(() => {
+    if (!notice) return;
+
+    const timer = window.setTimeout(() => setNotice(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const deferredSearch = useDeferredValue(search);
   const selectedStateCode = useMemo(() => {
@@ -431,6 +637,16 @@ export function AdminPortal() {
 
     return geoStates.find((state) => state.name === stateName)?.iso2 ?? "";
   }, [formState.state, formState.state_code, geoStates]);
+
+  const presentStateCode = useMemo(
+    () => getGeoStateCode(String(formState.present_state ?? ""), geoStates),
+    [formState.present_state, geoStates],
+  );
+
+  const permanentStateCode = useMemo(
+    () => getGeoStateCode(String(formState.permanent_state ?? ""), geoStates),
+    [formState.permanent_state, geoStates],
+  );
 
   const filteredRows = useMemo(() => {
     let rows = snapshot.rows;
@@ -503,10 +719,64 @@ export function AdminPortal() {
         }
         return res.json() as Promise<TableSnapshot>;
       })
-      .then((data) => { if (!cancelled) setSnapshot(data); })
+      .then(async (data) => {
+        if (cancelled) return;
+        setSnapshot(data);
+
+        const refTables = new Map<string, string>();
+        for (const rel of data.relatedTables) {
+          refTables.set(rel.references_table, rel.column);
+        }
+        if (refTables.size > 0) {
+          const map: Record<string, Record<string, string>> = {};
+          await Promise.all(
+            Array.from(refTables.entries()).map(async ([refTable, fkColumn]) => {
+              try {
+                const res = await fetch(`/api/table-data?table=${refTable}&limit=500`);
+                if (!res.ok) return;
+                const refData = (await res.json()) as TableSnapshot;
+                const refDef = tableLookup[refTable];
+                const refPk = refData.primaryKey ?? refDef?.primary_key[0] ?? Object.keys(refData.rows[0] ?? {}).find((k) => k.endsWith("_id")) ?? "";
+                const lookup: Record<string, string> = {};
+                for (const row of refData.rows) {
+                  const display = refDef ? getTableDisplayColumn(refDef, row) : String(row[refPk] ?? "");
+                  const pkVal = row[refPk];
+                  if (pkVal !== null && pkVal !== undefined) {
+                    lookup[String(pkVal)] = display;
+                  }
+                }
+                map[fkColumn] = lookup;
+              } catch { /* skip */ }
+            }),
+          );
+          if (!cancelled) setFkLabelMap(map);
+        }
+      })
       .catch((err: unknown) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load table"); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
+    return () => { cancelled = true; };
+  }, [activeTableName]);
+
+  // Fetch employee count per location for live roster display
+  useEffect(() => {
+    if (activeTableName !== "roster") {
+      setEmployeeCountMap({});
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/table-data?table=employee_master&limit=500")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        for (const e of data.rows ?? []) {
+          const locId = String(e.location_id ?? "");
+          if (locId) map[locId] = (map[locId] ?? 0) + 1;
+        }
+        setEmployeeCountMap(map);
+      })
+      .catch(() => { if (!cancelled) setEmployeeCountMap({}); });
     return () => { cancelled = true; };
   }, [activeTableName]);
 
@@ -556,6 +826,54 @@ export function AdminPortal() {
   }, [selectedStateCode]);
 
   useEffect(() => {
+    if (!presentStateCode) {
+      setPresentGeoCities([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch(`/api/geo/cities?state=${presentStateCode}`)
+      .then((r) => r.json() as Promise<GeoCity[]>)
+      .then((cities) => {
+        if (!cancelled && Array.isArray(cities)) {
+          setPresentGeoCities(cities);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPresentGeoCities([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [presentStateCode]);
+
+  useEffect(() => {
+    if (!permanentStateCode) {
+      setPermanentGeoCities([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch(`/api/geo/cities?state=${permanentStateCode}`)
+      .then((r) => r.json() as Promise<GeoCity[]>)
+      .then((cities) => {
+        if (!cancelled && Array.isArray(cities)) {
+          setPermanentGeoCities(cities);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPermanentGeoCities([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [permanentStateCode]);
+
+  useEffect(() => {
     if (activeTableName !== "parent_entity") return;
 
     const gstinValue = String(formState.gstin ?? "").trim();
@@ -592,25 +910,13 @@ export function AdminPortal() {
   };
 
   const visibleColumns   = activeTableConfig.columns;
+  const tableColumns = visibleColumns.filter((col) => !col.default?.includes("nextval"));
   const outgoingRelations = snapshot.relatedTables;
-  const formColumns = activeTableName === "employee_master"
-    ? visibleColumns
-        .filter((column) => shouldShowInCreateForm(column, activeTableConfig.table_name))
-        .map((column, index) => ({ column, index }))
-        .sort((left, right) => {
-          const priority = (columnName: string) => {
-            if (columnName === "parent_entity_id") return 0;
-            if (columnName === "location_id") return 1;
-            return 2;
-          };
-
-          const leftPriority = priority(left.column.column);
-          const rightPriority = priority(right.column.column);
-          if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-          return left.index - right.index;
-        })
-        .map((entry) => entry.column)
-    : visibleColumns.filter((column) => shouldShowInCreateForm(column, activeTableConfig.table_name));
+  const formColumns = visibleColumns
+    .filter((column) => shouldShowInCreateForm(column, activeTableConfig.table_name))
+    .map((column, index) => ({ column, index }))
+    .sort((left, right) => compareFormFields(activeTableConfig.table_name, left.column, right.column, left.index, right.index))
+    .map((entry) => entry.column);
 
   // ── handlers ─────────────────────────────────────────────────────────────
 
@@ -660,17 +966,12 @@ export function AdminPortal() {
 
           if (refName === "sub_location") {
             const parentEntityId = String(formState.parent_entity_id ?? "").trim();
-            if (!parentEntityId) {
-              for (const fk of fks) {
-                results[fk.column] = [];
-              }
-              return;
+            const params: Record<string, string | number> = { limit: 500 };
+            if (parentEntityId) {
+              params.parentEntityId = parentEntityId;
             }
 
-            const res = await fetch(buildTableApiUrl(refName, {
-              limit: 500,
-              parentEntityId,
-            }));
+            const res = await fetch(buildTableApiUrl(refName, params));
             if (!res.ok) return;
             const data = (await res.json()) as { rows: Record<string, unknown>[] };
 
@@ -744,7 +1045,7 @@ export function AdminPortal() {
   };
 
   const refreshTable = async () => {
-    const res = await fetch(buildTableApiUrl(activeTableName, { limit: 100 }));
+    const res = await fetch(buildTableApiUrl(activeTableName, { limit: 100 }), { cache: "no-store" });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error((body as { error?: string }).error ?? "Failed to refresh table");
@@ -812,6 +1113,36 @@ export function AdminPortal() {
         return draft;
       }, {});
       const endpoint = buildTableApiUrl(activeTableName);
+
+      if (mode === "create" && activeTableName === "holiday_calendar") {
+        const locationRaw = String(body.location_id ?? "");
+        const locationIds = locationRaw.split(",").filter(Boolean);
+
+        if (locationIds.length > 1) {
+          let createdCount = 0;
+          for (const locId of locationIds) {
+            const locBody = { ...body, location_id: locId };
+            const r = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(locBody),
+            });
+            const result = await r.json();
+            if (!r.ok) throw new Error((result as { error?: string }).error ?? "Unable to save record");
+            createdCount++;
+          }
+          await refreshTable();
+          setError(null);
+          setNotice(`${createdCount} records created successfully.`);
+          closeForm();
+          return;
+        }
+
+        if (locationIds.length === 0) {
+          delete body.location_id;
+        }
+      }
+
       const requestBody = mode === "create"
         ? body
         : { recordId: currentRowId, ...body };
@@ -824,6 +1155,7 @@ export function AdminPortal() {
       if (!res.ok) throw new Error((result as { error?: string }).error ?? "Unable to save record");
       await refreshTable();
       setError(null);
+      setNotice(mode === "create" ? "Record created successfully." : "Record updated successfully.");
       closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save record");
@@ -832,6 +1164,8 @@ export function AdminPortal() {
   };
 
   const deleteRecord = async (recordId: string) => {
+    const pk = snapshot.primaryKey ?? activeTable?.primary_key[0] ?? null;
+
     try {
       const res = await fetch(buildTableApiUrl(activeTableName), {
         method: "DELETE",
@@ -840,7 +1174,21 @@ export function AdminPortal() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error((result as { error?: string }).error ?? "Unable to delete record");
+
+      if (pk) {
+        setSnapshot((prev) => {
+          const nextRows = prev.rows.filter((row) => String(row[pk]) !== recordId);
+          return {
+            ...prev,
+            rows: nextRows,
+            total: Math.max(0, prev.total - 1),
+          };
+        });
+      }
+
       setDeletePrompt(null);
+      setError(null);
+      setNotice("Record deleted successfully.");
       await refreshTable();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete record");
@@ -860,6 +1208,54 @@ export function AdminPortal() {
   const updateForm = (column: string, value: string | boolean) => {
     setFormState((prev) => {
       const next = { ...prev, [column]: value };
+
+      if (activeTableName === "employee_address") {
+        if (column === "same_address" && Boolean(value)) {
+          for (const field of [
+            "address_line1",
+            "address_line2",
+            "country",
+            "state",
+            "city",
+            "pincode",
+          ]) {
+            const presentField = `present_${field}`;
+            const permanentField = `permanent_${field}`;
+            next[permanentField] = next[presentField] ?? "";
+          }
+        }
+
+        if (column === "present_country") {
+          next.present_state = "";
+          next.present_city = "";
+          if (Boolean(next.same_address)) {
+            next.permanent_country = next.present_country;
+            next.permanent_state = "";
+            next.permanent_city = "";
+          }
+        }
+
+        if (column === "permanent_country") {
+          next.permanent_state = "";
+          next.permanent_city = "";
+        }
+
+        if (column.startsWith("present_") && Boolean(next.same_address)) {
+          const permanentField = column.replace(/^present_/, "permanent_");
+          next[permanentField] = value;
+        }
+
+        if (column === "present_state") {
+          next.present_city = "";
+          if (Boolean(next.same_address)) {
+            next.permanent_city = "";
+          }
+        }
+
+        if (column === "permanent_state") {
+          next.permanent_city = "";
+        }
+      }
 
       if (activeTableName === "role_master" && column === "role_name") {
         next.role_code = normalizeRoleCode(String(value));
@@ -1240,12 +1636,29 @@ export function AdminPortal() {
                 )}
               </AnimatePresence>
 
+              <AnimatePresence>
+                {notice && (
+                  <div className="pointer-events-none fixed right-4 top-4 z-50 flex justify-end">
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                      transition={{ duration: 0.16 }}
+                      className="rounded-2xl border border-emerald-200 bg-emerald-50/95 px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg shadow-emerald-900/10 backdrop-blur"
+                    >
+                      {notice}
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
+
               <div className="mt-5 overflow-hidden rounded-[28px] border border-white/75 bg-white/80 shadow-inner">
                 <div className="max-h-[calc(100vh-22rem)] w-full max-w-full overflow-auto">
                   <table className="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
                     <thead className="sticky top-0 z-10 bg-[#FFF9F0]/95 backdrop-blur">
                       <tr>
-                        {visibleColumns.map((col) => (
+                        <th className="w-14 min-w-0 border-b border-slate-200 px-3 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">#</th>
+                        {tableColumns.map((col) => (
                           <th key={col.column} className="min-w-40 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">
                             <div className="flex items-center gap-2">
                               <span>{formatLabel(col.column)}</span>
@@ -1267,7 +1680,7 @@ export function AdminPortal() {
                       >
                         {filteredRows.length === 0 && !loading ? (
                           <tr>
-                            <td colSpan={visibleColumns.length + 1} className="px-4 py-12 text-center text-sm text-slate-500">
+                            <td colSpan={tableColumns.length + 2} className="px-4 py-12 text-center text-sm text-slate-500">
                               No records found for this table.
                             </td>
                           </tr>
@@ -1283,11 +1696,42 @@ export function AdminPortal() {
                               animate={{ opacity: 1, y: 0, transition: { delay: Math.min(index, 12) * 0.025, duration: 0.2 } }}
                               className="group border-b border-slate-100 transition hover:bg-[#FFF9F0]"
                             >
-                              {visibleColumns.map((col) => (
-                                <td key={col.column} className="min-w-40 max-w-[20rem] border-b border-slate-100 px-4 py-4 align-top text-slate-700">
-                                  <div className="wrap-break-word">{formatCellValue(col, row[col.column])}</div>
-                                </td>
-                              ))}
+                              <td className="w-14 min-w-0 border-b border-slate-100 px-3 py-4 text-center align-top text-xs text-slate-400">
+                                {index + 1}
+                              </td>
+                              {tableColumns.map((col) => {
+                                const fkLabel = fkLabelMap[col.column]?.[String(row[col.column] ?? "")];
+                                const cellValue = col.column === "available_staff_count"
+                                  ? employeeCountMap[String(row.location_id ?? "")] ?? 0
+                                  : row[col.column];
+                                const pkVal = pk ? row[pk] : null;
+                                const rowId = pkVal !== null && pkVal !== undefined ? String(pkVal) : String(index);
+                                const isPerm = activeTableName === "role_master" && col.column === "permissions";
+                                const isExpanded = expandedPerms.has(rowId);
+                                return (
+                                  <td key={col.column} className="min-w-40 max-w-[20rem] border-b border-slate-100 px-4 py-4 align-top text-slate-700">
+                                    {isPerm ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedPerms((prev) => {
+                                          const next = new Set(prev);
+                                          if (isExpanded) next.delete(rowId); else next.add(rowId);
+                                          return next;
+                                        })}
+                                        className="w-full cursor-pointer text-left font-mono text-xs leading-5 text-slate-600 hover:text-[#1A4F8A]"
+                                      >
+                                        {isExpanded
+                                          ? String(cellValue)
+                                          : String(cellValue).length > 60
+                                            ? String(cellValue).slice(0, 60) + "…"
+                                            : String(cellValue)}
+                                      </button>
+                                    ) : (
+                                      <div className="wrap-break-word">{fkLabel ?? formatCellValue(col, cellValue)}</div>
+                                    )}
+                                  </td>
+                                );
+                              })}
                               <td className="min-w-36 border-b border-slate-100 px-4 py-4 align-top">
                                 <div className="flex gap-2">
                                   <button
@@ -1570,13 +2014,16 @@ export function AdminPortal() {
                           Role templates coming soon — use Custom mode to build permissions manually.
                         </div>
                       ) : (
-                        <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+                              High-power actions are grade-gated. Use designation grade plus any override_grade_code before allowing Delete, Approve, Export, Run Payroll, or Correct Attendance.
+                            </div>
                           {PERMISSION_MODULES.map((module) => (
                             <div key={module.name} className="border-b border-slate-100 last:border-b-0">
                               <div className="grid grid-cols-[160px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-100 bg-[#1A4F8A]/6 px-4 py-2.5">
                                 <div className="text-sm font-bold text-[#1A4F8A]">{module.name}</div>
                                 {PERMISSION_ACTIONS.map((action) => (
-                                  <div key={action} className={`text-center text-[10px] font-bold uppercase tracking-[0.16em] ${action === "Delete" ? "text-[#FF6600]" : "text-slate-500"}`}>
+                                  <div key={action} className={`text-center text-[10px] font-bold uppercase tracking-[0.16em] ${isHighPowerAction(action) ? "text-[#FF6600]" : "text-slate-500"}`}>
                                     {action}
                                   </div>
                                 ))}
@@ -1597,7 +2044,7 @@ export function AdminPortal() {
                                             next[module.name][submodule][action] = e.target.checked;
                                             setPermissionDraft(next);
                                           }}
-                                          className={`h-[18px] w-[18px] cursor-pointer rounded border-slate-300 transition focus:ring-2 ${isDelete ? "accent-[#FF6600] focus:ring-[#FF6600]/20" : "accent-[#2A7D5F] focus:ring-[#2A7D5F]/20"}`}
+                                          className={`h-4.5 w-4.5 cursor-pointer rounded border-slate-300 transition focus:ring-2 ${isDelete ? "accent-[#FF6600] focus:ring-[#FF6600]/20" : "accent-[#2A7D5F] focus:ring-[#2A7D5F]/20"}`}
                                         />
                                       </label>
                                     );
@@ -1620,6 +2067,10 @@ export function AdminPortal() {
                   {formColumns.map((column) => {
                     const kind      = getFieldKind(column);
                     const isDepartmentShortCode = activeTable.table_name === "department_master" && column.column === "department_short_code";
+                    const isParentEntityRole = activeTable.table_name === "parent_entity" && column.column === "entity_role";
+                    const isEmployeeAddressTable = activeTable.table_name === "employee_address";
+                    const isPermanentAddressField = isEmployeeAddressTable && column.column.startsWith("permanent_");
+                    const sameAddressEnabled = isEmployeeAddressTable && Boolean(formState.same_address);
                     const isRolePermissionsField = activeTable.table_name === "role_master" && column.column === "permissions";
                     const readOnly  = isLockedGeneratedField(activeTable.table_name, column.column) || (mode === "create" && Boolean(column.default?.includes("nextval(")));
                     const value     = formState[column.column] ?? "";
@@ -1628,26 +2079,48 @@ export function AdminPortal() {
                     const fkOpts       = fkOptions[column.column];
                     const isFkColumn   = activeTable.foreign_keys.some((fk) => fk.column === column.column);
                     const hasFkOptions = Array.isArray(fkOpts) && fkOpts.length > 0;
-                    const isGeoField = ["country", "country_code", "state", "state_code", "city"].includes(column.column);
+                    const addressGeoInfo = getAddressGeoInfo(column.column);
+                    const isGeoField = ["country", "country_code", "state", "state_code", "city"].includes(column.column) || Boolean(addressGeoInfo);
                     const isEmployeeLocationField = activeTable.table_name === "employee_master" && column.column === "location_id";
                     const hasParentEntity = String(formState.parent_entity_id ?? "").trim() !== "";
 
                     let geoOpts: FkOption[] | null = null;
                     if (!hasFkOptions && kind === "text") {
-                      if (column.column === "country" && geoCountries.length > 0)
+                      if ((column.column === "country" || column.column === "present_country" || column.column === "permanent_country") && geoCountries.length > 0)
                         geoOpts = geoCountries.map((c) => ({ value: c.name, label: c.name }));
                       else if (column.column === "country_code" && geoCountries.length > 0)
                         geoOpts = geoCountries.map((c) => ({ value: c.iso2, label: `${c.iso2} — ${c.name}` }));
-                      else if (column.column === "state" && geoStates.length > 0)
+                      else if ((column.column === "state" || column.column === "present_state" || column.column === "permanent_state") && geoStates.length > 0)
                         geoOpts = geoStates.map((s) => ({ value: s.name, label: s.name }));
                       else if (column.column === "state_code" && geoStates.length > 0)
                         geoOpts = geoStates.map((s) => ({ value: s.iso2, label: `${s.iso2} — ${s.name}` }));
                       else if (column.column === "city")
                         geoOpts = geoCities.map((city) => ({ value: city.name, label: city.name }));
+                      else if (addressGeoInfo?.kind === "city") {
+                        const scopedCities = addressGeoInfo.prefix === "present" ? presentGeoCities : permanentGeoCities;
+                        geoOpts = scopedCities.map((city) => ({ value: city.name, label: city.name }));
+                      }
                     }
                     const hasGeoOptions = Array.isArray(geoOpts) && geoOpts.length > 0;
                     const useGeoSelect = isGeoField || hasGeoOptions;
                     const geoSelectOptions = geoOpts ?? [];
+                    const geoStateCodeForField = addressGeoInfo?.prefix === "present"
+                      ? presentStateCode
+                      : addressGeoInfo?.prefix === "permanent"
+                        ? permanentStateCode
+                        : selectedStateCode;
+                    const geoCountryForField = addressGeoInfo ? String(formState[`${addressGeoInfo.prefix}_country`] ?? "").trim() : "";
+                    const isCityField = column.column === "city" || addressGeoInfo?.kind === "city";
+                    const isLockedBySameAddress = sameAddressEnabled && isPermanentAddressField;
+                    const needsCountryForAddressField = addressGeoInfo != null && addressGeoInfo.kind !== "country" && !geoCountryForField;
+                    const needsStateForCity = isCityField && !geoStateCodeForField;
+                    const geoPlaceholder = addressGeoInfo
+                      ? (addressGeoInfo.kind === "city"
+                          ? (!geoCountryForField ? "Select a country first" : !geoStateCodeForField ? "Select a state first" : "— Select —")
+                          : addressGeoInfo.kind === "state" && !geoCountryForField
+                            ? "Select a country first"
+                            : "— Select —")
+                      : (column.column === "city" && !selectedStateCode ? "Select a state first" : "— Select —");
 
                     const staticOpts   = STATIC_ENUM_OPTIONS[column.column];
                     const hasStaticOpts = !isFkColumn && !useGeoSelect && Array.isArray(staticOpts) && staticOpts.length > 0 && kind === "text";
@@ -1659,7 +2132,9 @@ export function AdminPortal() {
                         className="flex flex-col gap-2 rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-semibold text-slate-900">{formatLabel(column.column)}</span>
+                          <span className="text-sm font-semibold text-slate-900">
+                            {isParentEntityRole ? "Business relationship role" : formatLabel(column.column)}
+                          </span>
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                             {hasFkOptions ? "relation" : hasGeoOptions ? "geo" : hasStaticOpts ? "select" : kind}
                           </span>
@@ -1670,7 +2145,7 @@ export function AdminPortal() {
                           <div className="flex gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
                             <button
                               type="button"
-                              disabled={readOnly}
+                              disabled={readOnly || isLockedBySameAddress}
                               onClick={() => updateForm(column.column, true)}
                               className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${Boolean(inputValue) ? "bg-[#2A7D5F] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                             >
@@ -1678,7 +2153,7 @@ export function AdminPortal() {
                             </button>
                             <button
                               type="button"
-                              disabled={readOnly}
+                              disabled={readOnly || isLockedBySameAddress}
                               onClick={() => updateForm(column.column, false)}
                               className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${!Boolean(inputValue) ? "bg-rose-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                             >
@@ -1719,9 +2194,16 @@ export function AdminPortal() {
                             </div>
 
                             <div className="overflow-hidden rounded-3xl border border-white/80 bg-white shadow-sm">
+                              <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+                                High-power actions are grade-gated. Use designation grade plus any override_grade_code before allowing Delete, Approve, Export, Run Payroll, or Correct Attendance.
+                              </div>
                               <div className="grid grid-cols-[210px_repeat(8,minmax(0,1fr))] gap-2 border-b border-slate-200 bg-[#1A4F8A]/6 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                                 <div>Module / Sub-module</div>
-                                {PERMISSION_ACTIONS.map((action) => <div key={action} className="text-center">{action}</div>)}
+                                {PERMISSION_ACTIONS.map((action) => (
+                                  <div key={action} className={`text-center ${isHighPowerAction(action) ? "text-[#FF6600]" : ""}`}>
+                                    {action}
+                                  </div>
+                                ))}
                               </div>
 
                               <div className="space-y-2 p-3">
@@ -1767,15 +2249,71 @@ export function AdminPortal() {
                           <textarea
                             rows={5}
                             value={String(inputValue)}
-                            readOnly={readOnly}
+                            readOnly={readOnly || isLockedBySameAddress}
                             onChange={(e) => updateForm(column.column, e.target.value)}
                             className="min-h-32 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
                             placeholder={column.default ? `Default: ${column.default}` : "{}"}
                           />
+                        ) : isFkColumn && activeTableName === "holiday_calendar" && column.column === "location_id" ? (
+                          <div ref={locationDropdownRef} className="relative flex flex-col gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setLocationDropdownOpen(!locationDropdownOpen)}
+                              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 transition hover:border-slate-300"
+                            >
+                              <span>
+                                {String(inputValue) ? `${String(inputValue).split(",").filter(Boolean).length} location(s) selected` : "— Select locations —"}
+                              </span>
+                              <svg className={`h-4 w-4 text-slate-400 transition ${locationDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            {locationDropdownOpen && (
+                              <div className="absolute left-0 right-0 top-full z-50 mt-1 flex flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={hasFkOptions && String(inputValue).split(",").filter(Boolean).length === fkOpts.length}
+                                    onChange={() => {
+                                      if (String(inputValue).split(",").filter(Boolean).length === fkOpts.length) {
+                                        updateForm(column.column, "");
+                                      } else {
+                                        updateForm(column.column, fkOpts.map((o) => o.value).join(","));
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-slate-300 text-[#1A4F8A] focus:ring-[#1A4F8A]"
+                                  />
+                                  Select All
+                                </label>
+                                <div className="max-h-36 overflow-auto border-t border-slate-100 pt-1">
+                                  {fkOpts?.length ? fkOpts.map((opt) => {
+                                    const selected = String(inputValue).split(",").includes(opt.value);
+                                    return (
+                                      <label key={opt.value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50">
+                                        <input
+                                          type="checkbox"
+                                          checked={selected}
+                                          onChange={() => {
+                                            const current = String(inputValue).split(",").filter(Boolean);
+                                            const next = selected
+                                              ? current.filter((v) => v !== opt.value)
+                                              : [...current, opt.value];
+                                            updateForm(column.column, next.join(","));
+                                          }}
+                                          className="h-4 w-4 rounded border-slate-300 text-[#1A4F8A] focus:ring-[#1A4F8A]"
+                                        />
+                                        {opt.label}
+                                      </label>
+                                    );
+                                  }) : <p className="px-2 py-3 text-center text-xs text-slate-400">No eligible options</p>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         ) : isFkColumn ? (
                           <select
                             value={String(inputValue)}
-                            disabled={readOnly || (isEmployeeLocationField && !hasParentEntity)}
+                            disabled={readOnly || isLockedBySameAddress || (isEmployeeLocationField && !hasParentEntity)}
                             onChange={(e) => updateForm(column.column, e.target.value)}
                             className={selectClass}
                           >
@@ -1789,12 +2327,12 @@ export function AdminPortal() {
                             {fkOpts?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
                           ) : useGeoSelect ? (
-                          <select value={String(inputValue)} disabled={readOnly || (column.column === "city" && !selectedStateCode)} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
-                            <option value="">{column.column === "city" && !selectedStateCode ? "Select a state first" : "— Select —"}</option>
+                          <select value={String(inputValue)} disabled={readOnly || isLockedBySameAddress || needsCountryForAddressField || needsStateForCity} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
+                            <option value="">{geoPlaceholder}</option>
                               {geoSelectOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
                         ) : hasStaticOpts ? (
-                          <select value={String(inputValue)} disabled={readOnly} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
+                          <select value={String(inputValue)} disabled={readOnly || isLockedBySameAddress} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
                             <option value="">— Select —</option>
                             {staticOpts.map((opt) => <option key={opt} value={opt}>{formatLabel(opt)}</option>)}
                           </select>
@@ -1802,7 +2340,7 @@ export function AdminPortal() {
                           <input
                             type={kind === "datetime" ? "datetime-local" : kind === "date" ? "date" : kind === "time" ? "time" : kind === "number" ? "number" : "text"}
                             value={String(inputValue)}
-                            readOnly={readOnly}
+                            readOnly={readOnly || isLockedBySameAddress}
                             onChange={(e) => {
                               const nextValue = isDepartmentShortCode ? normalizeDepartmentShortCode(e.target.value) : e.target.value;
                               updateForm(column.column, toInputValue(column, nextValue));
@@ -1817,6 +2355,7 @@ export function AdminPortal() {
                         <p className="text-xs text-slate-500">
                           {column.nullable ? "Optional field." : "Required field."}
                           {isDepartmentShortCode ? " Enter exactly 3 uppercase letters." : ""}
+                          {isLockedBySameAddress ? " Mirrors the present address while Same Address is enabled." : ""}
                           {readOnly ? " Auto-generated by the database." : ""}
                         </p>
                       </motion.label>

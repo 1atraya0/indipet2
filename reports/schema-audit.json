@@ -1,6 +1,6 @@
 {
   "generated_at": "2026-05-21T09:58:38.005Z",
-  "total_schema_tables": 49,
+  "total_schema_tables": 50,
   "total_portal_tables": 0,
   "tables_only_in_schema": [
     "attendance",
@@ -9,6 +9,7 @@
     "department_master",
     "designation_master",
     "employee_audit_log",
+    "employee_address",
     "employee_bank_history",
     "employee_category_master",
     "employee_documents",
@@ -401,7 +402,7 @@
           "default": null
         },
         {
-          "column": "override_level",
+          "column": "override_grade_code",
           "type": "character varying",
           "nullable": true,
           "default": null
@@ -472,6 +473,117 @@
         {
           "column": "changed_at",
           "type": "timestamp without time zone",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "employee_id",
+          "references_table": "employee_master",
+          "references_column": "employee_id"
+        }
+      ]
+    },
+    "employee_address": {
+      "primary_key": [
+        "employee_address_id"
+      ],
+      "column_count": 16,
+      "columns": [
+        {
+          "column": "employee_address_id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('employee_address_employee_address_id_seq'::regclass)"
+        },
+        {
+          "column": "employee_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "same_address",
+          "type": "boolean",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "present_address_line1",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "present_address_line2",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "present_country",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "present_state",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "present_city",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "present_pincode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permanent_address_line1",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permanent_address_line2",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permanent_country",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permanent_state",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permanent_city",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "permanent_pincode",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "status",
+          "type": "character varying",
           "nullable": true,
           "default": null
         }
@@ -1954,7 +2066,7 @@
       "primary_key": [
         "entity_id"
       ],
-      "column_count": 19,
+      "column_count": 20,
       "columns": [
         {
           "column": "entity_id",
@@ -1976,6 +2088,12 @@
         },
         {
           "column": "entity_type",
+          "type": "character varying",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "column": "entity_role",
           "type": "character varying",
           "nullable": true,
           "default": null
