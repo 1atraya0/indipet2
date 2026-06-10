@@ -19,6 +19,22 @@ CREATE TABLE IF NOT EXISTS employee_address (
   status text
 );
 
+-- Ensure all columns exist even if the table already existed without some of them
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS same_address boolean DEFAULT false;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS present_address_line1 text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS present_address_line2 text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS present_country text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS present_state text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS present_city text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS present_pincode text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS permanent_address_line1 text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS permanent_address_line2 text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS permanent_country text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS permanent_state text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS permanent_city text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS permanent_pincode text;
+ALTER TABLE employee_address ADD COLUMN IF NOT EXISTS status text;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
