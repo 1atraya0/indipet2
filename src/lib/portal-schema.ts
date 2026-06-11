@@ -216,7 +216,7 @@ export function shouldShowInCreateForm(column: ColumnDefinition, tableName?: str
     return false;
   }
 
-  if (tableName === "roster" && column.column === "available_staff_count") {
+  if (tableName === "roster" && (column.column === "available_staff_count" || column.column === "roster_code")) {
     return false;
   }
 

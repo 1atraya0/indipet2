@@ -301,7 +301,7 @@ function isLockedGeneratedField(tableName: string, columnName: string) {
     return true;
   }
 
-  if (tableName === "roster" && columnName === "available_staff_count") {
+  if (tableName === "roster" && (columnName === "available_staff_count" || columnName === "roster_code")) {
     return true;
   }
 
@@ -543,6 +543,13 @@ export function AdminPortal() {
   const [notice, setNotice]                     = useState<string | null>(null);
   const [employeeCountMap, setEmployeeCountMap] = useState<Record<string, number>>({});
   const [expandedPerms, setExpandedPerms] = useState<Set<string>>(new Set());
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [genLocationId, setGenLocationId] = useState("");
+  const [genShiftPolicyId, setGenShiftPolicyId] = useState("");
+  const [genStartDate, setGenStartDate] = useState("");
+  const [genEndDate, setGenEndDate] = useState("");
+  const [genShiftPolicies, setGenShiftPolicies] = useState<Array<{ value: string; label: string; location_id: string }>>([]);
+  const [genSubmitting, setGenSubmitting] = useState(false);
   const [fkOptions, setFkOptions]             = useState<Record<string, FkOption[]>>({});
   const [fkLabelMap, setFkLabelMap]           = useState<Record<string, Record<string, string>>>({});
   const [geoCountries, setGeoCountries]       = useState<GeoCountry[]>([]);
@@ -779,6 +786,26 @@ export function AdminPortal() {
       .catch(() => { if (!cancelled) setEmployeeCountMap({}); });
     return () => { cancelled = true; };
   }, [activeTableName]);
+
+  // Fetch shift policies for roster generate modal
+  useEffect(() => {
+    if (!generateOpen) return;
+    let cancelled = false;
+    fetch("/api/table-data?table=shift_policy_master&limit=100")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setGenShiftPolicies(
+          (data.rows ?? []).map((r: Record<string, unknown>) => ({
+            value: String(r.policy_id ?? ""),
+            label: String(r.policy_code ?? r.policy_name ?? r.policy_id ?? ""),
+            location_id: String(r.location_id ?? ""),
+          })),
+        );
+      })
+      .catch(() => { if (!cancelled) setGenShiftPolicies([]); });
+    return () => { cancelled = true; };
+  }, [generateOpen]);
 
   // Fetch geo data once
   useEffect(() => {
@@ -1438,6 +1465,15 @@ export function AdminPortal() {
                 >
                   Refresh table
                 </button>
+                {activeTableName === "roster" && (
+                  <button
+                    type="button"
+                    onClick={() => setGenerateOpen(true)}
+                    className="rounded-full bg-[#2A7D5F] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(42,125,95,0.25)] transition hover:-translate-y-0.5 hover:bg-[#1f6a4e]"
+                  >
+                    Generate Roster
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={openCreate}
@@ -1839,6 +1875,149 @@ export function AdminPortal() {
           </section>
         </main>
       </div>
+
+      {/* ── Generate Roster Modal ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {generateOpen && (
+          <motion.div
+            key="gen-overlay"
+            variants={MODAL_OVERLAY}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/20 px-4 py-6 backdrop-blur-sm"
+          >
+            <motion.div
+              key="gen-card"
+              variants={MODAL_CARD}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex max-h-full w-full max-w-lg flex-col rounded-3xl border border-white/70 bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                <h2 className="text-lg font-bold text-slate-900">Generate Roster</h2>
+                <button type="button" onClick={() => setGenerateOpen(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-5 overflow-y-auto px-6 py-5">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-slate-900">Location</span>
+                  <select
+                    value={genLocationId}
+                    onChange={(e) => { setGenLocationId(e.target.value); setGenShiftPolicyId(""); }}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                  >
+                    <option value="">— Select —</option>
+                    {(fkOptions.location_id ?? []).map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-slate-900">Shift Policy</span>
+                  <select
+                    value={genShiftPolicyId}
+                    onChange={(e) => setGenShiftPolicyId(e.target.value)}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                  >
+                    <option value="">— Select —</option>
+                    {genShiftPolicies
+                      .filter((sp) => !genLocationId || sp.location_id === genLocationId)
+                      .map((sp) => (
+                        <option key={sp.value} value={sp.value}>{sp.label}</option>
+                      ))}
+                  </select>
+                </label>
+
+                <div className="flex gap-4">
+                  <label className="flex flex-1 flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Start Date</span>
+                    <input
+                      type="date"
+                      value={genStartDate}
+                      onChange={(e) => setGenStartDate(e.target.value)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                    />
+                  </label>
+                  <label className="flex flex-1 flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900">End Date</span>
+                    <input
+                      type="date"
+                      value={genEndDate}
+                      onChange={(e) => setGenEndDate(e.target.value)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setGenerateOpen(false)}
+                  className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={genSubmitting || !genLocationId || !genShiftPolicyId || !genStartDate || !genEndDate}
+                  onClick={async () => {
+                    setGenSubmitting(true);
+                    try {
+                      const start = new Date(genStartDate);
+                      const end = new Date(genEndDate);
+                      let created = 0;
+                      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        const dateStr = d.toISOString().slice(0, 10);
+                        const dow = d.getDay();
+                        const body = {
+                          location_id: genLocationId,
+                          shift_policy_id: genShiftPolicyId,
+                          roster_date: dateStr,
+                          is_holiday: false,
+                          is_weekly_off: dow === 0,
+                          available_staff_count: 0,
+                          scenario: "standard",
+                          roster_status: "draft",
+                          version: 1,
+                        };
+                        const res = await fetch("/api/table-data?table=roster", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        });
+                        if (res.ok) created++;
+                        else {
+                          const txt = await res.text();
+                          console.warn("Skip", dateStr, txt.slice(0, 100));
+                        }
+                      }
+                      setGenerateOpen(false);
+                      if (created > 0) {
+                        await refreshTable();
+                        setNotice(`${created} roster record(s) generated.`);
+                      }
+                      setGenSubmitting(false);
+                    } catch {
+                      setGenSubmitting(false);
+                    }
+                  }}
+                  className="rounded-full bg-[#2A7D5F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f6a4e] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {genSubmitting ? "Generating..." : "Generate"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Create / Edit Modal ────────────────────────────────────────────── */}
       <AnimatePresence>
