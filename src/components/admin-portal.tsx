@@ -549,6 +549,7 @@ export function AdminPortal() {
   const [genStartDate, setGenStartDate] = useState("");
   const [genEndDate, setGenEndDate] = useState("");
   const [genShiftPolicies, setGenShiftPolicies] = useState<Array<{ value: string; label: string; location_id: string }>>([]);
+  const [genLocations, setGenLocations] = useState<Record<string, string>>({});
   const [genSubmitting, setGenSubmitting] = useState(false);
   const [fkOptions, setFkOptions]             = useState<Record<string, FkOption[]>>({});
   const [fkLabelMap, setFkLabelMap]           = useState<Record<string, Record<string, string>>>({});
@@ -787,23 +788,32 @@ export function AdminPortal() {
     return () => { cancelled = true; };
   }, [activeTableName]);
 
-  // Fetch shift policies for roster generate modal
+  // Fetch shift policies + locations for roster generate modal
   useEffect(() => {
     if (!generateOpen) return;
     let cancelled = false;
-    fetch("/api/table-data?table=shift_policy_master&limit=100")
-      .then((r) => r.json())
-      .then((data) => {
+
+    Promise.all([
+      fetch("/api/table-data?table=shift_policy_master&limit=100").then((r) => r.json()),
+      fetch("/api/table-data?table=sub_location&limit=100").then((r) => r.json()),
+    ])
+      .then(([shiftData, locData]) => {
         if (cancelled) return;
         setGenShiftPolicies(
-          (data.rows ?? []).map((r: Record<string, unknown>) => ({
+          (shiftData.rows ?? []).map((r: Record<string, unknown>) => ({
             value: String(r.policy_id ?? ""),
             label: String(r.policy_code ?? r.policy_name ?? r.policy_id ?? ""),
             location_id: String(r.location_id ?? ""),
           })),
         );
+        const locLookup: Record<string, string> = {};
+        for (const loc of locData.rows ?? []) {
+          const name = String(loc.location_name ?? loc.location_code ?? loc.sub_location_id ?? "");
+          locLookup[String(loc.sub_location_id ?? "")] = name;
+        }
+        setGenLocations(locLookup);
       })
-      .catch(() => { if (!cancelled) setGenShiftPolicies([]); });
+      .catch(() => { if (!cancelled) { setGenShiftPolicies([]); setGenLocations({}); } });
     return () => { cancelled = true; };
   }, [generateOpen]);
 
@@ -1913,8 +1923,8 @@ export function AdminPortal() {
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
                   >
                     <option value="">— Select —</option>
-                    {(fkOptions.location_id ?? []).map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    {Object.entries(genLocations).map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
                     ))}
                   </select>
                 </label>
