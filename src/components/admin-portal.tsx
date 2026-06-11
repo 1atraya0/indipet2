@@ -808,8 +808,8 @@ export function AdminPortal() {
         );
         const locLookup: Record<string, string> = {};
         for (const loc of locData.rows ?? []) {
-          const name = String(loc.location_name ?? loc.location_code ?? loc.sub_location_id ?? "");
-          locLookup[String(loc.sub_location_id ?? "")] = name;
+          const name = String(loc.location_name ?? loc.location_code ?? loc.location_id ?? "");
+          locLookup[String(loc.location_id ?? "")] = name;
         }
         setGenLocations(locLookup);
       })
