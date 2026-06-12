@@ -253,6 +253,54 @@ export async function listSubLocationRowsByParentEntity(parentEntityId: string, 
   };
 }
 
+export async function listDesignationRowsByDepartment(departmentId: string, limit = 500, offset = 0) {
+  const table = getTable("designation_master");
+  const orderColumn = getOrderColumn(table);
+  const rowsResult = await pool.query(
+    `select * from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier("department_id")} = $1 order by ${quoteIdentifier(orderColumn)} desc limit $2 offset $3`,
+    [departmentId, limit, offset],
+  );
+  const countResult = await pool.query(
+    `select count(*)::int as count from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier("department_id")} = $1`,
+    [departmentId],
+  );
+
+  return {
+    table,
+    rows: rowsResult.rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+  };
+}
+
+export async function listShiftPolicyRowsByLocation(locationId: string, limit = 500, offset = 0) {
+  const table = getTable("shift_policy_master");
+  const orderColumn = getOrderColumn(table);
+  const rowsResult = await pool.query(
+    `select * from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier("location_id")} = $1 order by ${quoteIdentifier(orderColumn)} desc limit $2 offset $3`,
+    [locationId, limit, offset],
+  );
+  const countResult = await pool.query(
+    `select count(*)::int as count from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier("location_id")} = $1`,
+    [locationId],
+  );
+
+  return {
+    table,
+    rows: rowsResult.rows,
+    total: Number(countResult.rows[0]?.count ?? 0),
+  };
+}
+
+export async function getTableRow(tableName: string, recordId: string) {
+  const table = getTable(tableName);
+  const result = await pool.query(
+    `select * from ${quoteIdentifier(table.table_name)} where ${quoteIdentifier(getPrimaryKey(table))} = $1`,
+    [recordId],
+  );
+
+  return result.rows[0] ? decorateEmployeeCode(table, result.rows[0]) : null;
+}
+
 export async function getTableOverview() {
   const counts = await Promise.all(
     allTables.map(async (table) => {
@@ -391,18 +439,56 @@ export function getRelatedTables(tableName: string) {
   }));
 }
 
-export async function listEmployeeLookupRows(_purpose: string, limit = 500, offset = 0) {
+export async function writeAuditLog(
+  tableName: string,
+  action: string,
+  oldData: Record<string, unknown> | null,
+  newData: Record<string, unknown> | null,
+) {
+  const employeeId = String(
+    (newData?.employee_id ?? oldData?.employee_id ?? "") as string,
+  ).trim();
+  if (!employeeId) return;
+  await pool.query(
+    `insert into employee_audit_log (employee_id, action, old_data, new_data, changed_at) values ($1, $2, $3::jsonb, $4::jsonb, now())`,
+    [
+      employeeId,
+      action,
+      oldData ? JSON.stringify(oldData) : null,
+      newData ? JSON.stringify(newData) : null,
+    ],
+  );
+}
+
+export async function listEmployeeLookupRows(purpose: string, limit = 500, offset = 0, locationId?: string) {
   const table = getTable("employee_master");
   const orderColumn = table.columns.some((column) => column.column === "employee_code")
     ? "employee_code"
     : getOrderColumn(table);
 
+  let whereClause = `coalesce(${quoteIdentifier("status")}, '') ilike 'active%'`;
+  const params: unknown[] = [];
+
+  if (purpose === "reporting_manager") {
+    whereClause += ` and ${quoteIdentifier("is_reporting_manager")} = true`;
+  }
+
+  if (locationId) {
+    whereClause += ` and ${quoteIdentifier("location_id")} = $${params.length + 1}`;
+    params.push(locationId);
+  }
+
+  params.push(limit, offset);
+
   const rowsResult = await pool.query(
-    `select * from ${quoteIdentifier(table.table_name)} where coalesce(${quoteIdentifier("status")}, '') ilike 'active%' order by ${quoteIdentifier(orderColumn)} asc limit $1 offset $2`,
-    [limit, offset],
+    `select * from ${quoteIdentifier(table.table_name)} where ${whereClause} order by ${quoteIdentifier(orderColumn)} asc limit $${params.length - 1} offset $${params.length}`,
+    params,
   );
+
+  const countParams = params.slice(0, -2);
   const countResult = await pool.query(
-    `select count(*)::int as count from ${quoteIdentifier(table.table_name)} where coalesce(${quoteIdentifier("status")}, '') ilike 'active%'`,
+    `select count(*)::int as count from ${quoteIdentifier(table.table_name)} where ${whereClause}`,
+    countParams,
   );
 
   return {

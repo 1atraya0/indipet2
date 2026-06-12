@@ -86,6 +86,7 @@ export const portalSections: PortalSection[] = [
       "leave_policy_master",
       "policy_variant",
       "policy_assignment",
+      "employee_leave_balance",
     ],
   },
   {

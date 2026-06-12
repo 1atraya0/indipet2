@@ -92,6 +92,11 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   entity_type: ["company", "llp", "partnership", "proprietorship"],
   gst_type: ["regular", "composite", "exempt"],
   document_type: ["aadhar", "pan", "passport", "dl", "voter_id", "other"],
+  verification_status: ["Pending", "Verified", "Rejected"],
+  document_status: ["Active", "Expired", "Archived"],
+  relationship: ["Spouse", "Parent", "Sibling", "Friend", "Other"],
+  profile_status: ["Partial", "Complete"],
+  nationality: ["Indian", "American", "British", "Canadian", "Australian", "Singaporean", "UAE", "Other"],
   fulfillment_type: ["delivery", "pickup", "both"],
   holiday_working_policy: ["co_credit", "extra_pay", "none"],
   severity: ["info", "warning", "error", "critical"],
@@ -548,9 +553,12 @@ export function AdminPortal() {
   const [genShiftPolicyId, setGenShiftPolicyId] = useState("");
   const [genStartDate, setGenStartDate] = useState("");
   const [genEndDate, setGenEndDate] = useState("");
-  const [genShiftPolicies, setGenShiftPolicies] = useState<Array<{ value: string; label: string; location_id: string }>>([]);
+  const [genShiftPolicies, setGenShiftPolicies] = useState<Array<{ value: string; label: string; location_id: string; weekly_off_day: number }>>([]);
   const [genLocations, setGenLocations] = useState<Record<string, string>>({});
   const [genSubmitting, setGenSubmitting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importSubmitting, setImportSubmitting] = useState(false);
+  const [importResult, setImportResult] = useState<{ total: number; created: number; skipped: number } | null>(null);
   const [fkOptions, setFkOptions]             = useState<Record<string, FkOption[]>>({});
   const [fkLabelMap, setFkLabelMap]           = useState<Record<string, Record<string, string>>>({});
   const [geoCountries, setGeoCountries]       = useState<GeoCountry[]>([]);
@@ -804,6 +812,7 @@ export function AdminPortal() {
             value: String(r.policy_id ?? ""),
             label: String(r.policy_code ?? r.policy_name ?? r.policy_id ?? ""),
             location_id: String(r.location_id ?? ""),
+            weekly_off_day: Number(r.weekly_off_day ?? -1),
           })),
         );
         const locLookup: Record<string, string> = {};
@@ -975,28 +984,48 @@ export function AdminPortal() {
             const purposeForColumn = (column: string) => {
               if (column === "area_manager_id") return "area_manager";
               if (column === "primary_keyholder_id" || column === "backup_keyholder_id") return "keyholder";
+              if (column === "reporting_manager_id") return "reporting_manager";
               return null;
             };
 
-            const purposes = Array.from(new Set(fks.map((fk) => purposeForColumn(fk.column)).filter(Boolean) as string[]));
+            const purposefulFks = fks.filter((fk) => purposeForColumn(fk.column) !== null);
+            const genericFks = fks.filter((fk) => purposeForColumn(fk.column) === null);
             const purposeRows = new Map<string, Record<string, unknown>[]>();
 
             await Promise.all(
-              purposes.map(async (purpose) => {
-                const res = await fetch(buildTableApiUrl("employee_master", { limit: 500, purpose }));
+              [...new Set(purposefulFks.map((fk) => purposeForColumn(fk.column)!))].map(async (purpose) => {
+                const params: Record<string, string | number | undefined> = { limit: 500, purpose };
+                if (purpose === "reporting_manager") {
+                  const locId = String(formState.location_id ?? "").trim();
+                  if (locId) params.locationId = locId;
+                }
+                const res = await fetch(buildTableApiUrl("employee_master", params));
                 if (!res.ok) return;
                 const data = (await res.json()) as { rows: Record<string, unknown>[] };
                 purposeRows.set(purpose, data.rows);
               }),
             );
 
-            for (const fk of fks) {
-              const purpose = purposeForColumn(fk.column);
-              const rows = purpose ? (purposeRows.get(purpose) ?? []) : [];
+            for (const fk of purposefulFks) {
+              const purpose = purposeForColumn(fk.column)!;
+              const rows = purposeRows.get(purpose) ?? [];
               results[fk.column] = rows.map((row) => ({
                 value: String(row[fk.references_column] ?? ""),
                 label: formatEmployeeLookupLabel(row),
               }));
+            }
+
+            if (genericFks.length > 0) {
+              const res = await fetch(buildTableApiUrl("employee_master", { limit: 500 }));
+              if (res.ok) {
+                const data = (await res.json()) as { rows: Record<string, unknown>[] };
+                for (const fk of genericFks) {
+                  results[fk.column] = data.rows.map((row) => ({
+                    value: String(row[fk.references_column] ?? ""),
+                    label: formatEmployeeLookupLabel(row),
+                  }));
+                }
+              }
             }
             return;
           }
@@ -1060,6 +1089,269 @@ export function AdminPortal() {
     if (activeTableName !== "employee_master" || !formOpen || !activeTable) return;
     loadFkOptions(activeTable).catch(() => {});
   }, [activeTableName, formOpen, formState.parent_entity_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_master" || !formOpen) return;
+    const deptId = String(formState.department_id ?? "").trim();
+    if (!deptId) return;
+    let cancelled = false;
+    fetch(`/api/table-data?table=designation_master&limit=500&departmentId=${deptId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const refDef = tableLookup["designation_master"];
+        setFkOptions((prev) => ({
+          ...prev,
+          designation_id: (data.rows ?? []).map((row: Record<string, unknown>) => ({
+            value: String(row.designation_id ?? ""),
+            label: getTableDisplayColumn(refDef, row),
+          })),
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, formState.department_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_master" || !formOpen) return;
+    const locId = String(formState.location_id ?? "").trim();
+    if (!locId) return;
+    let cancelled = false;
+    fetch(`/api/table-data?table=shift_policy_master&limit=500&locationId=${locId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setFkOptions((prev) => ({
+          ...prev,
+          default_shift_id: (data.rows ?? []).map((row: Record<string, unknown>) => ({
+            value: String(row.policy_id ?? ""),
+            label: String(row.policy_code ?? row.policy_name ?? row.policy_id ?? ""),
+          })),
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, formState.location_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_master" || !formOpen) return;
+    const locId = String(formState.location_id ?? "").trim();
+    let cancelled = false;
+    const params = new URLSearchParams({ table: "employee_master", purpose: "reporting_manager", limit: "500" });
+    if (locId) params.set("locationId", locId);
+    fetch(`/api/table-data?${params.toString()}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setFkOptions((prev) => ({
+          ...prev,
+          reporting_manager_id: (data.rows ?? []).map((row: Record<string, unknown>) => ({
+            value: String(row.employee_id ?? ""),
+            label: formatEmployeeLookupLabel(row),
+          })),
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, formState.location_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_transfer_history" || !formOpen) return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch(`/api/tables/employee_master/${empId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const locId = String(data.row?.location_id ?? "").trim();
+        if (locId) {
+          setFormState((prev) => ({ ...prev, from_location_id: locId }));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, formState.employee_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_transfer_history" || !formOpen) return;
+    const fromId = String(formState.from_location_id ?? "").trim();
+    const toId = String(formState.to_location_id ?? "").trim();
+    if (toId && toId === fromId) {
+      setFormState((prev) => ({ ...prev, to_location_id: "" }));
+    }
+  }, [activeTableName, formOpen, formState.from_location_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_statutory" || !formOpen || mode !== "create") return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch("/api/table-data?table=employee_address&limit=500")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const addr = (data.rows ?? []).find(
+          (r: Record<string, unknown>) => String(r.employee_id ?? "") === empId,
+        );
+        const state = String(addr?.present_state ?? addr?.permanent_state ?? "").trim();
+        if (state) {
+          setFormState((prev) => ({ ...prev, professional_tax_state: state }));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, mode, formState.employee_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_statutory" || !formOpen || mode !== "create") return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch("/api/table-data?table=employee_finance&limit=500")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const fin = (data.rows ?? []).find(
+          (r: Record<string, unknown>) => String(r.employee_id ?? "") === empId,
+        );
+        if (!fin) return;
+        const updates: Record<string, string> = {};
+        for (const col of ["pan_number", "uan_number", "pf_number", "esi_number"]) {
+          const val = String(fin[col] ?? "").trim();
+          if (val) updates[col] = val;
+        }
+        if (Object.keys(updates).length > 0) {
+          setFormState((prev) => ({ ...prev, ...updates }));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, mode, formState.employee_id]);
+
+  useEffect(() => {
+    if (activeTableName !== "employee_finance" || !formOpen || mode !== "create") return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch("/api/table-data?table=employee_statutory&limit=500")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const stat = (data.rows ?? []).find(
+          (r: Record<string, unknown>) => String(r.employee_id ?? "") === empId,
+        );
+        if (!stat) return;
+        const updates: Record<string, string> = {};
+        for (const col of ["pan_number", "uan_number", "pf_number", "esi_number"]) {
+          const val = String(stat[col] ?? "").trim();
+          if (val) updates[col] = val;
+        }
+        if (Object.keys(updates).length > 0) {
+          setFormState((prev) => ({ ...prev, ...updates }));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, mode, formState.employee_id]);
+
+  // 9: Nominee auto-fill from emergency_contact (create mode)
+  useEffect(() => {
+    if (activeTableName !== "employee_statutory" || !formOpen || mode !== "create") return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch(`/api/table-data?table=employee_emergency_contact&limit=500&employeeId=${empId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const primary = (data.rows ?? []).find(
+          (r: Record<string, unknown>) => r.is_primary === true,
+        ) ?? (data.rows ?? [])[0];
+        if (!primary) return;
+        const updates: Record<string, string> = {};
+        const name = String(primary.contact_name ?? "").trim();
+        if (name) updates.nominee_name = name;
+        const rel = String(primary.relationship ?? "").trim();
+        if (rel) updates.nominee_relation = rel;
+        const phone = String(primary.phone ?? "").trim();
+        if (phone) updates.nominee_phone = phone;
+        if (Object.keys(updates).length > 0) {
+          setFormState((prev) => ({ ...prev, ...updates }));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, mode, formState.employee_id]);
+
+  // 10: Scope transfer_history locations by employee's parent_entity_id
+  useEffect(() => {
+    if (activeTableName !== "employee_transfer_history" || !formOpen || mode !== "create") return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch(`/api/tables/employee_master/${empId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const peId = String(data.row?.parent_entity_id ?? "").trim();
+        if (!peId) return;
+        return fetch(`/api/table-data?table=sub_location&limit=500&parentEntityId=${peId}`)
+          .then((r) => r.json())
+          .then((locData) => {
+            if (cancelled) return;
+            const refDef = tableLookup["sub_location"];
+            const opts = (locData.rows ?? []).map((row: Record<string, unknown>) => ({
+              value: String(row.location_id ?? ""),
+              label: getTableDisplayColumn(refDef, row),
+            }));
+            setFkOptions((prev) => ({
+              ...prev,
+              from_location_id: opts,
+              to_location_id: opts,
+            }));
+          });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, mode, formState.employee_id]);
+
+  // 11-13: Default today for date fields
+  useEffect(() => {
+    if (!formOpen || mode !== "create") return;
+    const tables = ["employee_salary_history", "employee_bank_history", "employee_transfer_history"];
+    if (!activeTableName || !tables.includes(activeTableName)) return;
+    const today = new Date().toISOString().slice(0, 10);
+    setFormState((prev) => {
+      const updates: Record<string, string> = {};
+      if ((activeTableName === "employee_salary_history" || activeTableName === "employee_bank_history") && !prev.effective_from) {
+        updates.effective_from = today;
+      }
+      if (activeTableName === "employee_transfer_history" && !prev.transfer_date) {
+        updates.transfer_date = today;
+      }
+      return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+    });
+  }, [activeTableName, formOpen, mode]);
+
+  // 14: Auto-increment capture_index for employee_face_captures
+  useEffect(() => {
+    if (activeTableName !== "employee_face_captures" || !formOpen || mode !== "create") return;
+    const empId = String(formState.employee_id ?? "").trim();
+    if (!empId) return;
+    let cancelled = false;
+    fetch("/api/table-data?table=employee_face_captures&limit=500")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const maxIndex = (data.rows ?? [])
+          .filter((r: Record<string, unknown>) => String(r.employee_id ?? "") === empId)
+          .reduce((max: number, r: Record<string, unknown>) => Math.max(max, Number(r.capture_index ?? 0)), 0);
+        setFormState((prev) => ({ ...prev, capture_index: maxIndex + 1 }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, formOpen, mode, formState.employee_id]);
 
   const openEdit = (row: Record<string, unknown>) => {
     if (!activeTable) return;
@@ -1482,6 +1774,15 @@ export function AdminPortal() {
                     className="rounded-full bg-[#2A7D5F] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(42,125,95,0.25)] transition hover:-translate-y-0.5 hover:bg-[#1f6a4e]"
                   >
                     Generate Roster
+                  </button>
+                )}
+                {activeTableName === "employee_master" && (
+                  <button
+                    type="button"
+                    onClick={() => { setImportOpen(true); setImportResult(null); }}
+                    className="rounded-full bg-[#8B5CF6] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(139,92,246,0.25)] transition hover:-translate-y-0.5 hover:bg-[#7C3AED]"
+                  >
+                    Import Employees
                   </button>
                 )}
                 <button
@@ -1983,17 +2284,54 @@ export function AdminPortal() {
                     try {
                       const start = new Date(genStartDate);
                       const end = new Date(genEndDate);
+                      const selectedPolicy = genShiftPolicies.find((p) => p.value === genShiftPolicyId);
+                      const weeklyOffDay = selectedPolicy?.weekly_off_day ?? -1;
+                      let staffCount = 0;
+                      const holidayDates = new Set<string>();
+                      const existingDates = new Set<string>();
+
+                      await Promise.all([
+                        fetch("/api/table-data?table=holiday_calendar&limit=500")
+                          .then((r) => r.json())
+                          .then((data) => {
+                            for (const h of data.rows ?? []) {
+                              if (String(h.location_id ?? "") === genLocationId) {
+                                const d = (h.holiday_date ?? "").slice(0, 10);
+                                if (d >= genStartDate && d <= genEndDate) holidayDates.add(d);
+                              }
+                            }
+                          }),
+                        fetch("/api/table-data?table=employee_master&limit=500")
+                          .then((r) => r.json())
+                          .then((data) => {
+                            staffCount = (data.rows ?? []).filter(
+                              (e: Record<string, unknown>) => String(e.location_id ?? "") === genLocationId,
+                            ).length;
+                          }),
+                        fetch("/api/table-data?table=roster&limit=500")
+                          .then((r) => r.json())
+                          .then((data) => {
+                            for (const r of data.rows ?? []) {
+                              if (String(r.location_id ?? "") === genLocationId && String(r.shift_policy_id ?? "") === genShiftPolicyId) {
+                                existingDates.add((r.roster_date ?? "").slice(0, 10));
+                              }
+                            }
+                          }),
+                      ]);
+
                       let created = 0;
+                      let skipped = 0;
                       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                         const dateStr = d.toISOString().slice(0, 10);
+                        if (existingDates.has(dateStr)) { skipped++; continue; }
                         const dow = d.getDay();
                         const body = {
                           location_id: genLocationId,
                           shift_policy_id: genShiftPolicyId,
                           roster_date: dateStr,
-                          is_holiday: false,
-                          is_weekly_off: dow === 0,
-                          available_staff_count: 0,
+                          is_holiday: holidayDates.has(dateStr),
+                          is_weekly_off: weeklyOffDay >= 0 && dow === weeklyOffDay,
+                          available_staff_count: staffCount,
                           scenario: "standard",
                           roster_status: "draft",
                           version: 1,
@@ -2004,16 +2342,11 @@ export function AdminPortal() {
                           body: JSON.stringify(body),
                         });
                         if (res.ok) created++;
-                        else {
-                          const txt = await res.text();
-                          console.warn("Skip", dateStr, txt.slice(0, 100));
-                        }
+                        else { skipped++; }
                       }
                       setGenerateOpen(false);
-                      if (created > 0) {
-                        await refreshTable();
-                        setNotice(`${created} roster record(s) generated.`);
-                      }
+                      if (created > 0) await refreshTable();
+                      setNotice(`${created} roster record(s) created, ${skipped} skipped.`);
                       setGenSubmitting(false);
                     } catch {
                       setGenSubmitting(false);
@@ -2022,6 +2355,111 @@ export function AdminPortal() {
                   className="rounded-full bg-[#2A7D5F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f6a4e] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {genSubmitting ? "Generating..." : "Generate"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Import Employees Modal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {importOpen && (
+          <motion.div
+            key="import-overlay"
+            variants={MODAL_OVERLAY}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/20 px-4 py-6 backdrop-blur-sm"
+          >
+            <motion.div
+              key="import-card"
+              variants={MODAL_CARD}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex max-h-full w-full max-w-lg flex-col rounded-3xl border border-white/70 bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                <h2 className="text-lg font-bold text-slate-900">Import Employees</h2>
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(false)}
+                  className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="overflow-y-auto px-6 py-5 space-y-4">
+                <p className="text-sm text-slate-600">
+                  Upload a <strong>.csv</strong> or <strong>.xlsx</strong> file with employee data.
+                  Column headers are matched by name; supported columns include:{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">first name</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">last name</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">phone</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">email</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">gender</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">department</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">designation</code>,{" "}
+                  <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">location</code>, etc.
+                </p>
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 transition hover:border-[#8B5CF6] hover:bg-purple-50">
+                  <svg className="mb-3 h-10 w-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                  <span className="text-sm font-medium text-slate-600">Click to select file</span>
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx"
+                    className="hidden"
+                    disabled={importSubmitting}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setImportSubmitting(true);
+                      setImportResult(null);
+                      try {
+                        const fd = new FormData();
+                        fd.append("file", f);
+                        const res = await fetch("/api/import/employees", { method: "POST", body: fd });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error ?? "Import failed");
+                        setImportResult(data);
+                        await refreshTable();
+                      } catch (err) {
+                        setImportResult({ total: 0, created: 0, skipped: 0 });
+                        setNotice(err instanceof Error ? err.message : "Import failed");
+                      } finally {
+                        setImportSubmitting(false);
+                      }
+                    }}
+                  />
+                </label>
+                {importSubmitting && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#8B5CF6] border-t-transparent" />
+                    <span className="ml-3 text-sm text-slate-600">Importing...</span>
+                  </div>
+                )}
+                {importResult && (
+                  <div className="rounded-xl bg-slate-50 p-4 text-sm space-y-1">
+                    <p className="font-medium text-slate-800">Import complete</p>
+                    <p className="text-green-700">Created: {importResult.created}</p>
+                    <p className="text-amber-700">Skipped: {importResult.skipped}</p>
+                    <p className="text-slate-500">Total rows: {importResult.total}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end border-t border-slate-100 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setImportOpen(false)}
+                  className="rounded-full bg-slate-100 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200"
+                >
+                  Close
                 </button>
               </div>
             </motion.div>
@@ -2513,7 +2951,10 @@ export function AdminPortal() {
                                   ? "— Select —"
                                   : "No eligible options"}
                             </option>
-                            {fkOpts?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                            {(activeTableName === "employee_transfer_history" && column.column === "to_location_id"
+                              ? (fkOpts ?? []).filter((opt) => opt.value !== String(formState.from_location_id ?? ""))
+                              : fkOpts
+                            )?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
                           ) : useGeoSelect ? (
                           <select value={String(inputValue)} disabled={readOnly || isLockedBySameAddress || needsCountryForAddressField || needsStateForCity} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
