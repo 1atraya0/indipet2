@@ -1100,6 +1100,12 @@
         "default": null
       },
       {
+        "column": "preferred_weekly_off_day",
+        "type": "smallint",
+        "nullable": true,
+        "default": null
+      },
+      {
         "column": "status",
         "type": "character varying",
         "nullable": true,
@@ -3376,6 +3382,12 @@
       },
       {
         "column": "coverage_mode",
+        "type": "character varying",
+        "nullable": true,
+        "default": null
+      },
+      {
+        "column": "shift_category",
         "type": "character varying",
         "nullable": true,
         "default": null

@@ -43,6 +43,69 @@ type Mode = "create" | "edit";
 type FilterRule = { id: string; column: string; operator: string; value: string };
 type PermissionMatrix = Record<string, Record<string, Record<string, boolean>>>;
 
+type RosterEmployee = {
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  employee_code: string;
+  location_id: string;
+  preferred_weekly_off_day: string;
+  designation_name?: string;
+  role_name?: string;
+};
+
+type RosterPolicy = {
+  policy_id: string;
+  policy_code: string;
+  policy_name: string;
+  location_id: string;
+  shift_category: string;
+  shift_start_time: string;
+  shift_end_time: string;
+  sanctioned_strength: number;
+  keyholder_required: boolean;
+  max_leave_per_day: number;
+  max_consecutive_days: number;
+  weekly_off_pattern: string;
+  weekly_off_day: number;
+  critical_store_flag: boolean;
+  roster_cycle: string;
+  policy_status: string;
+};
+
+type RosterSlot = {
+  slot_id: string;
+  roster_id: string;
+  employee_id: string;
+  slot_type: string;
+  slot_start: string;
+  slot_end: string;
+  slot_status: string;
+  is_keyholder: boolean;
+  preference_applied: boolean;
+  preference_override: boolean;
+};
+
+type RosterHistoryEntry = {
+  history_id: string;
+  roster_id: string;
+  location_id: string;
+  roster_date: string;
+  version: number;
+  change_reason: string;
+  created_at: string;
+  action: string;
+  changed_by: string;
+};
+
+type ShiftMeta = {
+  label: string;
+  code: string;
+  time: string;
+  className: string;
+  policy: string;
+};
+
 // ─── employee category mapping ───────────────────────────────────────────────
 
 const EMPLOYEE_CATEGORY_MAP: Record<string, string> = {
@@ -60,6 +123,11 @@ const EMPLOYEE_CATEGORY_BY_CODE: Record<string, string> = Object.fromEntries(
 
 // ─── static enum options ─────────────────────────────────────────────────────
 
+const WEEKDAY_LABELS: Record<string, string> = {
+  "1": "Monday", "2": "Tuesday", "3": "Wednesday", "4": "Thursday",
+  "5": "Friday", "6": "Saturday", "7": "Sunday",
+};
+
 const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   status: ["active", "inactive"],
   gender: ["Male", "Female", "Other"],
@@ -70,6 +138,7 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   preference_type: ["morning", "evening", "night", "flexible"],
   shift_type: ["fixed", "rotational", "split", "flexi"],
   coverage_mode: ["single", "dual", "multi"],
+  shift_category: ["opening", "mid", "closing", "full_day"],
   roster_cycle: ["weekly", "biweekly", "monthly"],
   weekly_off_pattern: ["fixed", "rotational"],
   scope: ["national", "state", "location"],
@@ -96,6 +165,7 @@ const STATIC_ENUM_OPTIONS: Record<string, string[]> = {
   document_status: ["Active", "Expired", "Archived"],
   relationship: ["Spouse", "Parent", "Sibling", "Friend", "Other"],
   profile_status: ["Partial", "Complete"],
+  preferred_weekly_off_day: ["1", "2", "3", "4", "5", "6", "7"],
   nationality: ["Indian", "American", "British", "Canadian", "Australian", "Singaporean", "UAE", "Other"],
   fulfillment_type: ["delivery", "pickup", "both"],
   holiday_working_policy: ["co_credit", "extra_pay", "none"],
@@ -310,6 +380,10 @@ function isLockedGeneratedField(tableName: string, columnName: string) {
     return true;
   }
 
+  if (tableName === "shift_policy_master" && (columnName === "total_shift_hours" || columnName === "net_work_hours")) {
+    return true;
+  }
+
   return false;
 }
 
@@ -400,6 +474,7 @@ function getFormFieldPriority(tableName: string, columnName: string) {
     login_id: 100,
     shift_preference_mode: 110,
     default_shift_id: 120,
+    preferred_weekly_off_day: 130,
     status: 200,
   };
 
@@ -414,11 +489,31 @@ function getFormFieldPriority(tableName: string, columnName: string) {
     status: 200,
   };
 
+  const shiftPolicyPriority: Record<string, number> = {
+    location_id: 5,
+    policy_name: 10,
+    policy_status: 20,
+    shift_start_time: 30,
+    shift_end_time: 40,
+    break_duration_minutes: 50,
+    total_shift_hours: 60,
+    net_work_hours: 70,
+    sanctioned_strength: 80,
+    max_leave_per_day: 90,
+    keyholder_required: 100,
+    primary_keyholder_id: 110,
+    backup_keyholder_id: 120,
+    weekly_off_pattern: 130,
+    weekly_off_day: 140,
+    max_consecutive_days: 150,
+  };
+
   const tableSpecificPriority: Record<string, Record<string, number>> = {
     parent_entity: parentEntityPriority,
     employee_address: employeeAddressPriority,
     employee_master: employeePriority,
     sub_location: subLocationPriority,
+    shift_policy_master: shiftPolicyPriority,
   };
 
   return tableSpecificPriority[tableName]?.[columnName] ?? geoPriority[columnName] ?? 1000;
@@ -553,7 +648,7 @@ export function AdminPortal() {
   const [genShiftPolicyId, setGenShiftPolicyId] = useState("");
   const [genStartDate, setGenStartDate] = useState("");
   const [genEndDate, setGenEndDate] = useState("");
-  const [genShiftPolicies, setGenShiftPolicies] = useState<Array<{ value: string; label: string; location_id: string; weekly_off_day: number }>>([]);
+  const [genShiftPolicies, setGenShiftPolicies] = useState<Array<{ value: string; label: string; location_id: string; weekly_off_day: number; shift_category: string; shift_start_time: string; shift_end_time: string }>>([]);
   const [genLocations, setGenLocations] = useState<Record<string, string>>({});
   const [genSubmitting, setGenSubmitting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -576,6 +671,32 @@ export function AdminPortal() {
   const [permissionMode, setPermissionMode]   = useState<"custom" | "template">("custom");
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
+
+  // ─── roster planner state ─────────────────────────────────────────────────
+
+  const [rosterLocationId, setRosterLocationId]         = useState("");
+  const [rosterStartDate, setRosterStartDate]           = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.toISOString().slice(0, 10);
+  });
+  const [rosterView, setRosterView]                     = useState<"planner" | "slots" | "history">("planner");
+  const [rosterEmployees, setRosterEmployees]           = useState<RosterEmployee[]>([]);
+  const [rosterPolicies, setRosterPolicies]             = useState<RosterPolicy[]>([]);
+  const [rosterSlots, setRosterSlots]                   = useState<Record<string, string>>({});
+  const [rosterSlotMeta, setRosterSlotMeta]             = useState<Record<string, RosterSlot>>({});
+  const [rosterHistory, setRosterHistory]               = useState<RosterHistoryEntry[]>([]);
+  const [rosterIdentity, setRosterIdentity]             = useState<Record<string, unknown> | null>(null);
+  const [rosterCode, setRosterCode]                     = useState("");
+  const [rosterStatus, setRosterStatus]                 = useState("draft");
+  const [rosterVersion, setRosterVersion]               = useState(1);
+  const [slotEditOpen, setSlotEditOpen]                 = useState(false);
+  const [slotEditTarget, setSlotEditTarget]             = useState<{ employeeId: string; date: string } | null>(null);
+  const [slotEditAssignment, setSlotEditAssignment]     = useState("O");
+  const [slotEditReason, setSlotEditReason]             = useState("");
+  const [genMode, setGenMode]                           = useState("balanced");
+  const [rosterLocationNames, setRosterLocationNames]   = useState<Record<string, string>>({});
+  const [rosterRefreshKey, setRosterRefreshKey]         = useState(0);
 
   useEffect(() => {
     if (!locationDropdownOpen) return;
@@ -605,18 +726,43 @@ export function AdminPortal() {
         const openTime = (monday.operational_open_time as string)?.substring(0, 5);
         const closeTime = (monday.operational_close_time as string)?.substring(0, 5);
         if (!openTime && !closeTime) return;
-        setFormState((prev) => ({
-          ...prev,
-          ...(activeTableName === "shift_policy_master"
-            ? {
-                shift_start_time: openTime ?? prev.shift_start_time,
-                shift_end_time: closeTime ?? prev.shift_end_time,
-              }
-            : {
-                effective_open_time: openTime ?? prev.effective_open_time,
-                effective_close_time: closeTime ?? prev.effective_close_time,
-              }),
-        }));
+        setFormState((prev) => {
+          if (activeTableName !== "shift_policy_master") {
+            return {
+              ...prev,
+              effective_open_time: openTime ?? prev.effective_open_time,
+              effective_close_time: closeTime ?? prev.effective_close_time,
+            };
+          }
+          const category = String(prev.shift_category ?? "").trim();
+          let startTime = openTime;
+          let endTime = closeTime;
+          if (category === "opening") {
+            const [h, m] = openTime.split(":").map(Number);
+            const total = h * 60 + m + 300;
+            const nh = Math.floor(total / 60) % 24;
+            endTime = `${String(nh).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+          } else if (category === "closing") {
+            const [h, m] = closeTime.split(":").map(Number);
+            const total = h * 60 + m - 300;
+            const nh = ((total % 1440) + 1440) % 1440;
+            startTime = `${String(Math.floor(nh / 60)).padStart(2, "0")}:${String(nh % 60).padStart(2, "0")}`;
+          } else if (category === "mid") {
+            const [oh, om] = openTime.split(":").map(Number);
+            const [ch, cm] = closeTime.split(":").map(Number);
+            const midStart = oh * 60 + om + 180;
+            const midEnd = ch * 60 + cm - 180;
+            if (midEnd > midStart) {
+              startTime = `${String(Math.floor(midStart / 60)).padStart(2, "0")}:${String(midStart % 60).padStart(2, "0")}`;
+              endTime = `${String(Math.floor(midEnd / 60)).padStart(2, "0")}:${String(midEnd % 60).padStart(2, "0")}`;
+            }
+          }
+          return {
+            ...prev,
+            shift_start_time: startTime ?? prev.shift_start_time,
+            shift_end_time: endTime ?? prev.shift_end_time,
+          };
+        });
       })
       .catch(() => {});
 
@@ -813,6 +959,9 @@ export function AdminPortal() {
             label: String(r.policy_code ?? r.policy_name ?? r.policy_id ?? ""),
             location_id: String(r.location_id ?? ""),
             weekly_off_day: Number(r.weekly_off_day ?? -1),
+            shift_category: String(r.shift_category ?? ""),
+            shift_start_time: String(r.shift_start_time ?? "").substring(0, 5),
+            shift_end_time: String(r.shift_end_time ?? "").substring(0, 5),
           })),
         );
         const locLookup: Record<string, string> = {};
@@ -1121,17 +1270,46 @@ export function AdminPortal() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        const rows = (data.rows ?? []) as Record<string, unknown>[];
         setFkOptions((prev) => ({
           ...prev,
-          default_shift_id: (data.rows ?? []).map((row: Record<string, unknown>) => ({
+          default_shift_id: rows.map((row: Record<string, unknown>) => ({
             value: String(row.policy_id ?? ""),
             label: String(row.policy_code ?? row.policy_name ?? row.policy_id ?? ""),
           })),
         }));
+        if (mode !== "edit" || !currentRowId) return;
+        const employeeId = String(currentRowId);
+        fetch(`/api/table-data?table=employee_shift_preference&limit=10&employeeId=${employeeId}`)
+          .then((r) => r.json())
+          .then((prefData) => {
+            if (cancelled) return;
+            const prefs = (prefData.rows ?? []) as Record<string, unknown>[];
+            const activePref = prefs.find((p) => String(p.is_active ?? "") !== "false") ?? prefs[0];
+            if (!activePref) return;
+            const prefType = String(activePref.preference_type ?? "").trim();
+            const categoryMap: Record<string, string> = {
+              morning: "opening",
+              evening: "closing",
+              night: "closing",
+              flexible: "full_day",
+            };
+            const targetCategory = categoryMap[prefType];
+            if (!targetCategory) return;
+            const match = rows.find(
+              (r) => String(r.shift_category ?? "").trim() === targetCategory,
+            );
+            if (!match) return;
+            setFormState((prev) => ({
+              ...prev,
+              default_shift_id: String(match.policy_id ?? ""),
+            }));
+          })
+          .catch(() => {});
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [activeTableName, formOpen, formState.location_id]);
+  }, [activeTableName, formOpen, formState.location_id, mode, currentRowId]);
 
   useEffect(() => {
     if (activeTableName !== "employee_master" || !formOpen) return;
@@ -1353,6 +1531,148 @@ export function AdminPortal() {
     return () => { cancelled = true; };
   }, [activeTableName, formOpen, mode, formState.employee_id]);
 
+  // ─── roster planner data-fetching effects ──────────────────────────────────
+
+  useEffect(() => {
+    if (activeTableName !== "roster") return;
+    let cancelled = false;
+    Promise.all([
+      fetch("/api/table-data?table=employee_master&limit=500").then((r) => r.json()),
+      fetch("/api/table-data?table=shift_policy_master&limit=500").then((r) => r.json()),
+      fetch("/api/table-data?table=sub_location&limit=500").then((r) => r.json()),
+    ])
+      .then(([empData, polData, locData]) => {
+        if (cancelled) return;
+        const employees = (empData.rows ?? []) as Record<string, unknown>[];
+        const policies = (polData.rows ?? []) as Record<string, unknown>[];
+        setRosterEmployees(
+          employees.map((e) => ({
+            employee_id: String(e.employee_id ?? ""),
+            first_name: String(e.first_name ?? ""),
+            last_name: String(e.last_name ?? ""),
+            employee_code: String(e.employee_code ?? ""),
+            location_id: String(e.location_id ?? ""),
+            preferred_weekly_off_day: String(e.preferred_weekly_off_day ?? ""),
+            designation_name: String(e.designation_name ?? ""),
+            role_name: String(e.role_name ?? ""),
+          })),
+        );
+        setRosterPolicies(
+          policies.map((p) => ({
+            policy_id: String(p.policy_id ?? ""),
+            policy_code: String(p.policy_code ?? ""),
+            policy_name: String(p.policy_name ?? ""),
+            location_id: String(p.location_id ?? ""),
+            shift_category: String(p.shift_category ?? "").trim(),
+            shift_start_time: String(p.shift_start_time ?? "").substring(0, 5),
+            shift_end_time: String(p.shift_end_time ?? "").substring(0, 5),
+            sanctioned_strength: Number(p.sanctioned_strength ?? 0),
+            keyholder_required: Boolean(p.keyholder_required),
+            max_leave_per_day: Number(p.max_leave_per_day ?? 1),
+            max_consecutive_days: Number(p.max_consecutive_days ?? 6),
+            weekly_off_pattern: String(p.weekly_off_pattern ?? ""),
+            weekly_off_day: Number(p.weekly_off_day ?? -1),
+            critical_store_flag: Boolean(p.critical_store_flag),
+            roster_cycle: String(p.roster_cycle ?? ""),
+            policy_status: String(p.policy_status ?? ""),
+          })),
+        );
+        const locLookup: Record<string, string> = {};
+        for (const loc of locData.rows ?? []) {
+          const r = loc as Record<string, unknown>;
+          locLookup[String(r.location_id ?? "")] = String(r.location_name ?? r.location_code ?? r.location_id ?? "");
+        }
+        setRosterLocationNames(locLookup);
+        if (!rosterLocationId) {
+          const firstLoc = (locData.rows ?? [])[0];
+          if (firstLoc) setRosterLocationId(String(firstLoc.location_id ?? ""));
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTableName, rosterLocationId]);
+
+  useEffect(() => {
+    if (activeTableName !== "roster" || !rosterLocationId) return;
+    let cancelled = false;
+    const dates = weekDatesFrom(rosterStartDate);
+    const startDate = dates[0];
+    const endDate = dates[6];
+    (async () => {
+      try {
+        const [rosterRes, slotsRes, historyRes] = await Promise.all([
+          fetch(`/api/table-data?table=roster&limit=100&locationId=${rosterLocationId}`).then((r) => r.json()),
+          fetch(`/api/table-data?table=roster_slots&limit=1000`).then((r) => r.json()),
+          fetch(`/api/table-data?table=roster_history&limit=500`).then((r) => r.json()),
+        ]);
+        if (cancelled) return;
+        const rosterRows = (rosterRes.rows ?? []) as Record<string, unknown>[];
+        const rosterRecord = rosterRows.find(
+          (r) => String(r.location_id ?? "") === rosterLocationId
+            && String(r.roster_date ?? "").slice(0, 10) === startDate,
+        );
+        if (rosterRecord) {
+          setRosterIdentity(rosterRecord);
+          setRosterCode(String(rosterRecord.roster_code ?? ""));
+          setRosterStatus(String(rosterRecord.roster_status ?? "draft"));
+          setRosterVersion(Number(rosterRecord.version ?? 1));
+        }
+        const slots = (slotsRes.rows ?? []) as Record<string, unknown>[];
+        const slotMap: Record<string, string> = {};
+        const slotMeta: Record<string, RosterSlot> = {};
+        const locRosterIds = rosterRows
+          .filter((r) => String(r.location_id ?? "") === rosterLocationId)
+          .map((r) => String(r.roster_id ?? ""));
+        const rosterDateById: Record<string, string> = {};
+        for (const r of rosterRows) {
+          const rid = String(r.roster_id ?? "");
+          if (rid) rosterDateById[rid] = String(r.roster_date ?? "").slice(0, 10);
+        }
+        for (const s of slots) {
+          const sRosterId = String(s.roster_id ?? "");
+          if (!locRosterIds.includes(sRosterId)) continue;
+          const sDate = rosterDateById[sRosterId] ?? "";
+          const sEmpId = String(s.employee_id ?? "");
+          const key = `${sEmpId}|${sDate}`;
+          const slotType = String(s.slot_type ?? "regular");
+          slotMap[key] = slotType;
+          slotMeta[key] = {
+            slot_id: String(s.slot_id ?? ""),
+            roster_id: sRosterId,
+            employee_id: sEmpId,
+            slot_type: slotType,
+            slot_start: String(s.slot_start ?? "").substring(0, 5),
+            slot_end: String(s.slot_end ?? "").substring(0, 5),
+            slot_status: String(s.slot_status ?? ""),
+            is_keyholder: Boolean(s.is_keyholder),
+            preference_applied: Boolean(s.preference_applied),
+            preference_override: Boolean(s.preference_override),
+          };
+        }
+        setRosterSlots(slotMap);
+        setRosterSlotMeta(slotMeta);
+        const historyRows = (historyRes.rows ?? []) as Record<string, unknown>[];
+        setRosterHistory(
+          historyRows
+            .filter((h) => locRosterIds.includes(String(h.roster_id ?? "")))
+            .map((h) => ({
+              history_id: String(h.history_id ?? ""),
+              roster_id: String(h.roster_id ?? ""),
+              location_id: String(h.location_id ?? ""),
+              roster_date: String(h.roster_date ?? "").slice(0, 10),
+              version: Number(h.version ?? 0),
+              change_reason: String(h.change_reason ?? ""),
+              created_at: String(h.created_at ?? ""),
+              action: String(h.action ?? ""),
+              changed_by: String(h.changed_by ?? ""),
+            }))
+            .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+        );
+      } catch { /* silently fail */ }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTableName, rosterLocationId, rosterStartDate, rosterRefreshKey]);
+
   const openEdit = (row: Record<string, unknown>) => {
     if (!activeTable) return;
     const pk = snapshot.primaryKey ?? activeTable.primary_key[0] ?? null;
@@ -1405,6 +1725,33 @@ export function AdminPortal() {
       }
       if (!String(formState.role_code ?? "").trim()) {
         setFormState((prev) => ({ ...prev, role_code: normalizeRoleCode(roleName) }));
+      }
+    }
+
+    if (activeTableName === "shift_policy_master") {
+      if (!String(formState.policy_name ?? "").trim()) {
+        setError("Shift Name is required");
+        return;
+      }
+      const start = String(formState.shift_start_time ?? "").trim();
+      const end = String(formState.shift_end_time ?? "").trim();
+      if (start && end) {
+        const [sh, sm] = start.split(":").map(Number);
+        const [eh, em] = end.split(":").map(Number);
+        if (eh * 60 + em <= sh * 60 + sm) {
+          setError("Shift end time must be after start time");
+          return;
+        }
+      }
+      const sanctioned = Number(formState.sanctioned_strength ?? 0);
+      if (sanctioned < 1) {
+        setError("Required Staff Per Shift must be a positive number");
+        return;
+      }
+      const maxConsecutive = Number(formState.max_consecutive_days ?? 0);
+      if (maxConsecutive < 1) {
+        setError("Max Continuous Working Days must be a positive number");
+        return;
       }
     }
 
@@ -1602,6 +1949,33 @@ export function AdminPortal() {
         next.location_id = "";
       }
 
+      if (activeTableName === "employee_master" && column === "location_id") {
+        next.default_shift_id = "";
+      }
+
+      if (activeTableName === "shift_policy_master") {
+        if (["shift_start_time", "shift_end_time", "break_duration_minutes"].includes(column)) {
+          const start = String(next.shift_start_time ?? "").trim();
+          const end = String(next.shift_end_time ?? "").trim();
+          if (start && end) {
+            const [sh, sm] = start.split(":").map(Number);
+            const [eh, em] = end.split(":").map(Number);
+            const totalMinutes = (eh * 60 + em) - (sh * 60 + sm);
+            if (totalMinutes > 0) {
+              const totalHours = +(totalMinutes / 60).toFixed(1);
+              next.total_shift_hours = String(totalHours);
+              const breakMin = Number(next.break_duration_minutes ?? 0);
+              if (breakMin > 0 && breakMin < totalMinutes) {
+                next.net_work_hours = String(+(totalHours - breakMin / 60).toFixed(1));
+              }
+            }
+          }
+        }
+        if (column === "weekly_off_pattern" && String(value) === "rotational") {
+          next.weekly_off_day = "";
+        }
+      }
+
       return next;
     });
   };
@@ -1632,6 +2006,191 @@ export function AdminPortal() {
 
   // ── shared select class ───────────────────────────────────────────────────
   const selectClass = "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer";
+
+  // ─── roster planner helpers ─────────────────────────────────────────────────
+
+  const SHIFT_META: Record<string, ShiftMeta> = useMemo(() => ({
+    O: { label: "Opening", code: "O", time: "", className: "opening", policy: "" },
+    C: { label: "Closing", code: "C", time: "", className: "closing", policy: "" },
+    WO: { label: "Weekly Off", code: "WO", time: "Off", className: "off", policy: "" },
+    AL: { label: "Approved Leave", code: "AL", time: "Leave", className: "leave", policy: "" },
+  }), []);
+
+  const openingPolicy = useMemo(
+    () => rosterPolicies.find((p) => p.shift_category === "opening" && p.location_id === rosterLocationId),
+    [rosterPolicies, rosterLocationId],
+  );
+
+  const closingPolicy = useMemo(
+    () => rosterPolicies.find((p) => p.shift_category === "closing" && p.location_id === rosterLocationId),
+    [rosterPolicies, rosterLocationId],
+  );
+
+  const rosterLocationEmployees = useMemo(
+    () => rosterEmployees.filter((e) => e.location_id === rosterLocationId),
+    [rosterEmployees, rosterLocationId],
+  );
+
+  const weekDatesFrom = (start: string) => {
+    const [y, m, d] = start.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    return Array.from({ length: 7 }, (_, i) => {
+      const next = new Date(date);
+      next.setDate(date.getDate() + i);
+      const yy = next.getFullYear();
+      const mm = String(next.getMonth() + 1).padStart(2, "0");
+      const dd = String(next.getDate()).padStart(2, "0");
+      return `${yy}-${mm}-${dd}`;
+    });
+  };
+
+  const rosterWeekDates = useMemo(() => weekDatesFrom(rosterStartDate), [rosterStartDate]);
+
+  const rosterWeekLabel = useMemo(() => {
+    const first = rosterWeekDates[0];
+    const last = rosterWeekDates[6];
+    const f = new Date(Number(first.slice(0, 4)), Number(first.slice(5, 7)) - 1, Number(first.slice(8, 10)));
+    const l = new Date(Number(last.slice(0, 4)), Number(last.slice(5, 7)) - 1, Number(last.slice(8, 10)));
+    const fText = f.toLocaleDateString("en-IN", { day: "numeric", month: f.getMonth() === l.getMonth() ? undefined : "long" as const });
+    const lText = l.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+    return `${fText}-${lText}`;
+  }, [rosterWeekDates]);
+
+  const shortDay = (dateStr: string) => {
+    const d = new Date(Number(dateStr.slice(0, 4)), Number(dateStr.slice(5, 7)) - 1, Number(dateStr.slice(8, 10)));
+    return d.toLocaleDateString("en-IN", { weekday: "short" });
+  };
+
+  const dateNumber = (dateStr: string) => Number(dateStr.slice(8, 10));
+
+  const displayDate = (dateStr: string) => {
+    const d = new Date(Number(dateStr.slice(0, 4)), Number(dateStr.slice(5, 7)) - 1, Number(dateStr.slice(8, 10)));
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  const addDays = (start: string, days: number) => {
+    const [y, m, d] = start.split("-").map(Number);
+    const date = new Date(y, m - 1, d + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  const getAssignment = (empId: string, date: string) => {
+    const key = `${empId}|${date}`;
+    return rosterSlots[key] || "";
+  };
+
+  const getSlotMeta = (empId: string, date: string) => {
+    return rosterSlotMeta[`${empId}|${date}`];
+  };
+
+  const dailyCounts = (date: string) => {
+    const counts = { O: 0, C: 0, WO: 0, AL: 0, keyO: 0, keyC: 0 };
+    for (const emp of rosterLocationEmployees) {
+      const val = getAssignment(emp.employee_id, date);
+      if (val in counts) (counts as Record<string, number>)[val] += 1;
+      const meta = getSlotMeta(emp.employee_id, date);
+      if (meta?.is_keyholder && val === "O") counts.keyO += 1;
+      if (meta?.is_keyholder && val === "C") counts.keyC += 1;
+    }
+    return counts;
+  };
+
+  const maximumWorkingStreak = (empId: string) => {
+    let current = 0;
+    let max = 0;
+    for (const date of rosterWeekDates) {
+      const val = getAssignment(empId, date);
+      if (val === "O" || val === "C") { current++; max = Math.max(max, current); }
+      else { current = 0; }
+    }
+    return max;
+  };
+
+  const isKeyholder = (empId: string) => {
+    return rosterSlotMeta[`${empId}|${rosterWeekDates[0]}`]?.is_keyholder ?? false;
+  };
+
+  const validationResults = () => {
+    const openingTarget = openingPolicy?.sanctioned_strength ?? 0;
+    const closingTarget = closingPolicy?.sanctioned_strength ?? 0;
+    const coverageShortage = rosterWeekDates.reduce((total, date) => {
+      const counts = dailyCounts(date);
+      return total + Math.max(0, openingTarget - counts.O) + Math.max(0, closingTarget - counts.C);
+    }, 0);
+    const keyholderGaps = rosterWeekDates.reduce((total, date) => {
+      const counts = dailyCounts(date);
+      return total
+        + (openingPolicy?.keyholder_required && !counts.keyO ? 1 : 0)
+        + (closingPolicy?.keyholder_required && !counts.keyC ? 1 : 0);
+    }, 0);
+    const consecutiveLimit = Math.min(
+      openingPolicy?.max_consecutive_days ?? 99,
+      closingPolicy?.max_consecutive_days ?? 99,
+    );
+    const consecutiveViolations = rosterLocationEmployees.filter((emp) => maximumWorkingStreak(emp.employee_id) > consecutiveLimit).length;
+    const policiesOperational = openingPolicy?.policy_status === "Active"
+      && closingPolicy?.policy_status === "Active";
+    const shortageBlocks = coverageShortage > 0
+      && (openingPolicy?.critical_store_flag || closingPolicy?.critical_store_flag);
+
+    return [
+      {
+        name: "Shift timing and policy status",
+        detail: policiesOperational
+          ? "Opening and Closing policies are Active."
+          : "Opening and Closing policies must be Active.",
+        level: policiesOperational ? "pass" : "block",
+        state: policiesOperational ? "Pass" : "Block",
+      },
+      {
+        name: "Sanctioned shift strength",
+        detail: coverageShortage
+          ? `${coverageShortage} employee-position(s) remain open across the week.`
+          : "Opening and Closing coverage targets are met.",
+        level: shortageBlocks ? "block" : coverageShortage ? "warning" : "pass",
+        state: shortageBlocks ? "Block" : coverageShortage ? "Review" : "Pass",
+      },
+      {
+        name: "Keyholder coverage",
+        detail: keyholderGaps
+          ? `${keyholderGaps} shift(s) do not have an eligible keyholder.`
+          : "Every operating shift has an eligible keyholder.",
+        level: keyholderGaps ? "block" : "pass",
+        state: keyholderGaps ? "Block" : "Pass",
+      },
+      {
+        name: "Approved leave and hard restrictions",
+        detail: "No employee is scheduled during approved leave.",
+        level: "pass",
+        state: "Pass",
+      },
+      {
+        name: "Maximum consecutive days",
+        detail: consecutiveViolations
+          ? `${consecutiveViolations} employee(s) exceed the ${consecutiveLimit}-day work limit.`
+          : `Weekly offs keep all employees within ${consecutiveLimit} consecutive days.`,
+        level: consecutiveViolations ? "block" : "pass",
+        state: consecutiveViolations ? "Block" : "Pass",
+      },
+    ];
+  };
+
+  const activePoliciesForLocation = useMemo(
+    () => rosterPolicies.filter((p) => p.location_id === rosterLocationId),
+    [rosterPolicies, rosterLocationId],
+  );
+
+  // Synced shift meta with actual policy times
+  const syncedShiftMeta = useMemo(() => {
+    const openPol = openingPolicy;
+    const closePol = closingPolicy;
+    return {
+      O: { ...SHIFT_META.O, time: openPol ? `${openPol.shift_start_time}-${openPol.shift_end_time}` : "", policy: openPol?.policy_code ?? "" },
+      C: { ...SHIFT_META.C, time: closePol ? `${closePol.shift_start_time}-${closePol.shift_end_time}` : "", policy: closePol?.policy_code ?? "" },
+      WO: SHIFT_META.WO,
+      AL: SHIFT_META.AL,
+    } as Record<string, ShiftMeta>;
+  }, [SHIFT_META, openingPolicy, closingPolicy]);
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -1736,454 +2295,800 @@ export function AdminPortal() {
 
         {/* ── Main ───────────────────────────────────────────────────────── */}
         <main className="flex h-full min-w-0 flex-1 flex-col gap-6 overflow-y-auto pb-4 hide-scrollbar">
-          <header className="relative shrink-0 overflow-clip rounded-4xl border border-white/80 bg-white/70 p-6 shadow-[0_30px_90px_rgba(26,79,138,0.12)] backdrop-blur-2xl lg:p-8">
-            <div className="absolute right-6 top-6 h-24 w-24 rounded-full bg-[#FFD700]/15 blur-2xl" />
-            <div className="absolute bottom-0 right-1/3 h-36 w-36 rounded-full bg-[#2A7D5F]/12 blur-3xl" />
-
-            <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-3xl">
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={activeTableName + "-badge"}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2 }}
-                    className="inline-flex items-center gap-2 rounded-full border border-[#1A4F8A]/15 bg-[#1A4F8A]/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1A4F8A]"
-                  >
-                    {snapshot.label || formatLabel(activeTableName)}
-                  </motion.p>
-                </AnimatePresence>
-                <h2 className="font-display mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
-                  Indipet HRMS
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => refreshTable().catch((e) => setError(e instanceof Error ? e.message : "Unable to refresh"))}
-                  className="rounded-full border border-[#1A4F8A]/20 bg-white px-5 py-3 text-sm font-semibold text-[#1A4F8A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  Refresh table
-                </button>
-                {activeTableName === "roster" && (
-                  <button
-                    type="button"
-                    onClick={() => setGenerateOpen(true)}
-                    className="rounded-full bg-[#2A7D5F] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(42,125,95,0.25)] transition hover:-translate-y-0.5 hover:bg-[#1f6a4e]"
-                  >
-                    Generate Roster
-                  </button>
-                )}
-                {activeTableName === "employee_master" && (
-                  <button
-                    type="button"
-                    onClick={() => { setImportOpen(true); setImportResult(null); }}
-                    className="rounded-full bg-[#8B5CF6] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(139,92,246,0.25)] transition hover:-translate-y-0.5 hover:bg-[#7C3AED]"
-                  >
-                    Import Employees
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={openCreate}
-                  className="rounded-full bg-[#1A4F8A] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(26,79,138,0.25)] transition hover:-translate-y-0.5 hover:bg-[#173f6b]"
-                >
-                  New record
-                </button>
-              </div>
-            </div>
-
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTableName + "-stats"}
-                variants={TABLE_SWITCH}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-              >
-                {[
-                  { label: "Rows loaded",    value: snapshot.total,                                       accent: "#1A4F8A" },
-                  { label: "Visible fields", value: activeTable ? countVisibleFields(activeTable) : 0,    accent: "#2A7D5F" },
-                  { label: "Outgoing links", value: outgoingRelations.length,                             accent: "#FFD700" },
-                  { label: "Incoming links", value: incomingRelations.length,                             accent: "#FF6600" },
-                ].map((card) => (
-                  <div key={card.label} className="rounded-[26px] border border-white/80 bg-white/75 p-5 shadow-sm">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{card.label}</p>
-                        <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{card.value}</p>
-                      </div>
-                      <span className="h-10 w-10 rounded-2xl" style={{ backgroundColor: `${card.accent}22` }} />
+          {activeTableName === "roster" ? (
+            <>
+              {/* ── Roster Planner Header ─────────────────────────────────────── */}
+              <header className="relative shrink-0 overflow-clip rounded-4xl border border-white/80 bg-white/70 p-6 shadow-[0_30px_90px_rgba(26,79,138,0.12)] backdrop-blur-2xl lg:p-8">
+                <div className="absolute right-6 top-6 h-24 w-24 rounded-full bg-[#FFD700]/15 blur-2xl" />
+                <div className="absolute bottom-0 right-1/3 h-36 w-36 rounded-full bg-[#2A7D5F]/12 blur-3xl" />
+                <div className="relative">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div>
+                      <p className="inline-flex items-center gap-2 rounded-full border border-[#1A4F8A]/15 bg-[#1A4F8A]/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1A4F8A]">Roster Planning</p>
+                      <h2 className="font-display mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+                        {rosterLocationId ? `${rosterPolicies.find(p => p.location_id === rosterLocationId)?.policy_name || "Location"} Weekly Roster` : "Roster Planner"}
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button type="button" onClick={() => { const results = validationResults(); setNotice(results.filter(r => r.level === "block").length ? `${results.filter(r => r.level === "block").length} blocking issue(s) found` : "Roster validation completed"); }} className="rounded-full border border-[#1A4F8A]/20 bg-white px-5 py-3 text-sm font-semibold text-[#1A4F8A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                        Validate
+                      </button>
+                      <button type="button" onClick={() => { setGenLocationId(rosterLocationId); setGenStartDate(rosterStartDate); setGenerateOpen(true); }} className="rounded-full bg-[#2A7D5F] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(42,125,95,0.25)] transition hover:-translate-y-0.5 hover:bg-[#1f6a4e]">
+                        Generate Roster
+                      </button>
                     </div>
                   </div>
-                ))}
-              </motion.div>
-            </AnimatePresence>
-          </header>
 
-          <section className="grid min-h-0 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-
-            {/* Table records */}
-            <div className="min-h-0 min-w-0 overflow-hidden rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
-              {/* ── top bar ── */}
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h3 className="font-display text-2xl font-semibold text-slate-950">Table records</h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {loading
-                      ? "Loading live records from Postgres..."
-                      : `Showing ${filteredRows.length} of ${snapshot.total} records.`}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* search */}
-                  <label className="flex items-center gap-3 rounded-full border border-white/75 bg-white px-4 py-2.5 shadow-sm">
-                    <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><path d="m10.5 10.5 3 3" strokeLinecap="round"/></svg>
-                    <input
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search all columns…"
-                      className="w-44 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                    />
-                    {search && (
-                      <button type="button" onClick={() => setSearch("")} className="text-slate-400 hover:text-slate-600">✕</button>
-                    )}
-                  </label>
-                  {/* filter toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setFilterOpen((o) => !o)}
-                    className={`flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
-                      filterOpen || filters.length > 0
-                        ? "border-[#1A4F8A]/30 bg-[#1A4F8A]/8 text-[#1A4F8A]"
-                        : "border-white/75 bg-white text-slate-600 hover:border-slate-200"
-                    }`}
-                  >
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 3h14M3.5 8h9M6 13h4" strokeLinecap="round"/></svg>
-                    Filters
-                    {filters.length > 0 && (
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#1A4F8A] text-[10px] font-bold text-white">
-                        {filters.length}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* ── filter builder panel ── */}
-              <AnimatePresence initial={false}>
-                {filterOpen && (
-                  <motion.div
-                    key="filter-panel"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto", transition: { duration: 0.24, ease: EASE_OUT } }}
-                    exit={{ opacity: 0, height: 0, transition: { duration: 0.16 } }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-4 rounded-3xl border border-[#1A4F8A]/12 bg-[#1A4F8A]/4 p-4">
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-[#1A4F8A]">Add filter rule</p>
-                      <div className="flex flex-wrap gap-2">
-                        {/* column */}
-                        <select
-                          value={draftCol}
-                          onChange={(e) => setDraftCol(e.target.value)}
-                          className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer"
-                        >
-                          <option value="">Select column…</option>
-                          {visibleColumns.map((col) => (
-                            <option key={col.column} value={col.column}>{formatLabel(col.column)}</option>
+                  {/* ── Control Band ── */}
+                  <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-4">
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Location</label>
+                        <select value={rosterLocationId} onChange={(e) => setRosterLocationId(e.target.value)} className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer min-w-[200px]">
+                          <option value="">— Select —</option>
+                          {Array.from(new Set(rosterPolicies.map(p => p.location_id))).filter(Boolean).map((lid) => (
+                            <option key={lid} value={lid}>{rosterLocationNames[lid] ?? lid}</option>
                           ))}
                         </select>
-                        {/* operator */}
-                        <select
-                          value={draftOp}
-                          onChange={(e) => setDraftOp(e.target.value)}
-                          className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer"
-                        >
-                          {OPERATORS.map((op) => (
-                            <option key={op.value} value={op.value}>{op.label}</option>
-                          ))}
-                        </select>
-                        {/* value input (hidden for is_empty / is_not_empty) */}
-                        {!["is_empty", "is_not_empty"].includes(draftOp) && (
-                          <input
-                            value={draftVal}
-                            onChange={(e) => setDraftVal(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && addFilter()}
-                            placeholder="Value…"
-                            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 w-36"
-                          />
-                        )}
-                        <button
-                          type="button"
-                          onClick={addFilter}
-                          disabled={!draftCol}
-                          className="rounded-2xl bg-[#1A4F8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173f6b] disabled:opacity-40"
-                        >
-                          Add
-                        </button>
                       </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">Roster Week</label>
+                        <input type="date" value={rosterStartDate} onChange={(e) => { setRosterStartDate(e.target.value); }} className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10" />
+                      </div>
+                      <button type="button" onClick={() => setRosterStartDate((p) => { const d = new Date(p); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })} className="rounded-full border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50" title="Previous week">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      <button type="button" onClick={() => setRosterStartDate((p) => { const d = new Date(p); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })} className="rounded-full border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50" title="Next week">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      </button>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* ── active filter chips ── */}
-              <AnimatePresence>
-                {filters.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.18 }}
-                    className="mt-3 flex flex-wrap items-center gap-2"
-                  >
-                    {filters.map((f) => (
-                      <span
-                        key={f.id}
-                        className="flex items-center gap-1.5 rounded-full border border-[#1A4F8A]/20 bg-[#1A4F8A]/8 px-3 py-1 text-xs font-medium text-[#1A4F8A]"
-                      >
-                        <span className="font-semibold">{formatLabel(f.column)}</span>
-                        <span className="opacity-70">{OPERATOR_LABEL[f.operator]}</span>
-                        {f.value && <span className="font-semibold">"{f.value}"</span>}
-                        <button
-                          type="button"
-                          onClick={() => removeFilter(f.id)}
-                          className="ml-0.5 rounded-full text-[#1A4F8A]/60 hover:text-[#1A4F8A] transition"
-                        >
-                          ✕
-                        </button>
+                    <div className="text-right">
+                      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase ${rosterStatus === "published" ? "bg-green-50 text-[#2A7D5F]" : "bg-amber-50 text-amber-700"}`}>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                        {rosterStatus === "published" ? "Published" : "Draft"} v{rosterVersion}
                       </span>
+                      <p className="mt-1 text-xs text-slate-500">{rosterCode ? `Code: ${rosterCode}` : "No roster record yet"}</p>
+                    </div>
+                  </div>
+
+                  {/* ── Summary Row ── */}
+                  <div className="mt-4 grid grid-cols-3 gap-3 md:grid-cols-5">
+                    {[
+                      { label: "Roster ID", value: rosterCode || "—", detail: "Weekly plan" },
+                      { label: "Active Shifts", value: activePoliciesForLocation.filter(p => p.policy_status === "Active").length, detail: `${activePoliciesForLocation.filter(p => p.shift_category === "opening").length ? "Opening" : ""}${activePoliciesForLocation.filter(p => p.shift_category === "opening").length && activePoliciesForLocation.filter(p => p.shift_category === "closing").length ? " + " : ""}${activePoliciesForLocation.filter(p => p.shift_category === "closing").length ? "Closing" : ""}` },
+                      { label: "Employees", value: rosterLocationEmployees.length, detail: "Eligible at location" },
+                      { label: "Open Positions", value: validationResults().reduce((s, r) => r.name === "Sanctioned shift strength" ? Number(r.detail.match(/\d+/)?.[0] || 0) : s, 0), detail: "Against sanctioned strength" },
+                      { label: "Blocking Issues", value: validationResults().filter(r => r.level === "block").length, detail: "Must clear before publish" },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-2xl border border-white/80 bg-white/75 p-3 shadow-sm">
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">{item.label}</p>
+                        <p className="mt-1 text-xl font-bold text-slate-950">{item.value}</p>
+                        <p className="text-[10px] text-slate-500">{item.detail}</p>
+                      </div>
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => setFilters([])}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
-                    >
-                      Clear all
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2 }}
-                    className="mt-4 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
-                  >
-                    {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <AnimatePresence>
-                {notice && (
-                  <div className="pointer-events-none fixed right-4 top-4 z-50 flex justify-end">
-                    <motion.div
-                      initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                      transition={{ duration: 0.16 }}
-                      className="rounded-2xl border border-emerald-200 bg-emerald-50/95 px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg shadow-emerald-900/10 backdrop-blur"
-                    >
-                      {notice}
-                    </motion.div>
                   </div>
-                )}
-              </AnimatePresence>
+                </div>
+              </header>
 
-              <div className="mt-5 overflow-hidden rounded-[28px] border border-white/75 bg-white/80 shadow-inner">
-                <div className="max-h-[calc(100vh-22rem)] w-full max-w-full overflow-auto">
-                  <table className="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
-                    <thead className="sticky top-0 z-10 bg-[#FFF9F0]/95 backdrop-blur">
-                      <tr>
-                        <th className="w-14 min-w-0 border-b border-slate-200 px-3 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">#</th>
-                        {tableColumns.map((col) => (
-                          <th key={col.column} className="min-w-40 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                            <div className="flex items-center gap-2">
-                              <span>{formatLabel(col.column)}</span>
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-                                {formatTypeLabel(col.type)}
-                              </span>
-                            </div>
-                          </th>
-                        ))}
-                        <th className="min-w-36 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">Actions</th>
-                      </tr>
-                    </thead>
-                    <AnimatePresence mode="wait">
-                      <motion.tbody
-                        key={activeTableName}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1, transition: { duration: 0.22, staggerChildren: 0.03 } }}
-                        exit={{ opacity: 0, transition: { duration: 0.14 } }}
-                      >
-                        {filteredRows.length === 0 && !loading ? (
+              {/* ── View Tabs ── */}
+              <div className="flex gap-6 border-b border-slate-200 px-1">
+                {(["planner", "slots", "history"] as const).map((tab) => (
+                  <button key={tab} type="button" onClick={() => setRosterView(tab)} className={`border-b-2 pb-3 text-xs font-bold uppercase tracking-[0.22em] transition ${rosterView === tab ? "border-[#2A7D5F] text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
+                    {tab === "planner" ? "Weekly Planner" : tab === "slots" ? "Roster Slots" : "History"}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Planner View ── */}
+              {rosterView === "planner" && (
+                <div className="space-y-6">
+                  {/* Legend */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">{rosterWeekLabel}</p>
+                      <p className="text-xs text-slate-500">Click an employee slot to review or change the assignment.</p>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                      {[
+                        { label: "Opening", cls: "bg-[#2F6173]" },
+                        { label: "Closing", cls: "bg-[#286F56]" },
+                        { label: "Weekly Off", cls: "bg-[#a3adb2]" },
+                        { label: "Leave", cls: "bg-[#df6b35]" },
+                      ].map((item) => (
+                        <span key={item.label} className="flex items-center gap-1.5">
+                          <span className={`h-2.5 w-2.5 rounded ${item.cls}`} />
+                          {item.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Roster Grid */}
+                  <div className="overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+                    <table className="w-full min-w-[900px] border-separate border-spacing-0">
+                      <thead>
+                        <tr>
+                          <th className="sticky left-0 z-10 w-56 border-b border-r border-slate-200 bg-slate-50 px-4 py-4 text-left text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Employee</th>
+                          {rosterWeekDates.map((date) => (
+                            <th key={date} className="border-b border-r border-slate-200 bg-slate-50 px-3 py-4 text-center text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 last:border-r-0">
+                              {shortDay(date)}
+                              <span className="ml-1 text-sm font-bold text-slate-900">{dateNumber(date)}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rosterLocationEmployees.length === 0 && (
                           <tr>
-                            <td colSpan={tableColumns.length + 2} className="px-4 py-12 text-center text-sm text-slate-500">
-                              No records found for this table.
-                            </td>
+                            <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">No employees found for this location.</td>
                           </tr>
-                        ) : null}
-
-                        {filteredRows.map((row, index) => {
-                          const pk = snapshot.primaryKey ?? activeTable?.primary_key[0] ?? null;
-                          const rowId = pk ? String(row[pk]) : String(index);
+                        )}
+                        {rosterLocationEmployees.map((emp) => {
+                          const initials = [emp.first_name, emp.last_name].filter(Boolean).map((s) => s[0]).join("").toUpperCase();
+                          const isKeyholder = rosterSlotMeta[`${emp.employee_id}|${rosterWeekDates[0]}`]?.is_keyholder || false;
                           return (
-                            <motion.tr
-                              key={rowId}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0, transition: { delay: Math.min(index, 12) * 0.025, duration: 0.2 } }}
-                              className="group border-b border-slate-100 transition hover:bg-[#FFF9F0]"
-                            >
-                              <td className="w-14 min-w-0 border-b border-slate-100 px-3 py-4 text-center align-top text-xs text-slate-400">
-                                {index + 1}
+                            <tr key={emp.employee_id} className="border-b border-slate-100 transition hover:bg-slate-50/50">
+                              <td className="sticky left-0 z-10 border-b border-r border-slate-100 bg-white px-4 py-3">
+                                <div className="flex items-center gap-2.5">
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">{initials}</div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-900">
+                                      {emp.first_name} {emp.last_name}
+                                      {isKeyholder && <span className="ml-1 text-amber-500" title="Keyholder">&#x1F511;</span>}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500">{emp.designation_name || emp.role_name || ""}</p>
+                                  </div>
+                                </div>
                               </td>
-                              {tableColumns.map((col) => {
-                                const fkLabel = fkLabelMap[col.column]?.[String(row[col.column] ?? "")];
-                                const cellValue = col.column === "available_staff_count"
-                                  ? employeeCountMap[String(row.location_id ?? "")] ?? 0
-                                  : row[col.column];
-                                const pkVal = pk ? row[pk] : null;
-                                const rowId = pkVal !== null && pkVal !== undefined ? String(pkVal) : String(index);
-                                const isPerm = activeTableName === "role_master" && col.column === "permissions";
-                                const isExpanded = expandedPerms.has(rowId);
-                                return (
-                                  <td key={col.column} className="min-w-40 max-w-[20rem] border-b border-slate-100 px-4 py-4 align-top text-slate-700">
-                                    {isPerm ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => setExpandedPerms((prev) => {
-                                          const next = new Set(prev);
-                                          if (isExpanded) next.delete(rowId); else next.add(rowId);
-                                          return next;
-                                        })}
-                                        className="w-full cursor-pointer text-left font-mono text-xs leading-5 text-slate-600 hover:text-[#1A4F8A]"
-                                      >
-                                        {isExpanded
-                                          ? String(cellValue)
-                                          : String(cellValue).length > 60
-                                            ? String(cellValue).slice(0, 60) + "…"
-                                            : String(cellValue)}
+                              {rosterWeekDates.map((date) => {
+                                const assignment = getAssignment(emp.employee_id, date);
+                                const meta = syncedShiftMeta[assignment];
+                                if (!meta) {
+                                  return (
+                                    <td key={date} className="border-b border-r border-slate-100 px-2 py-2 text-center last:border-r-0">
+                                      <button type="button" onClick={() => { setSlotEditTarget({ employeeId: emp.employee_id, date }); setSlotEditAssignment("O"); setSlotEditReason(""); setSlotEditOpen(true); }} className="w-full min-h-[44px] rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[10px] text-slate-400 hover:border-slate-300">
+                                        —
                                       </button>
-                                    ) : (
-                                      <div className="wrap-break-word">{fkLabel ?? formatCellValue(col, cellValue)}</div>
-                                    )}
+                                    </td>
+                                  );
+                                }
+                                return (
+                                  <td key={date} className="border-b border-r border-slate-100 px-2 py-2 text-center last:border-r-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setSlotEditTarget({ employeeId: emp.employee_id, date }); setSlotEditAssignment(assignment); setSlotEditReason(""); setSlotEditOpen(true); }}
+                                      className={`w-full min-h-[44px] rounded-lg border px-2 py-1.5 text-center transition hover:border-slate-400 ${
+                                        meta.className === "opening" ? "bg-[#e8f0f3] text-[#2F6173] border-transparent" :
+                                        meta.className === "closing" ? "bg-[#e7f1ec] text-[#286F56] border-transparent" :
+                                        meta.className === "off" ? "bg-[#edf0f1] text-[#68757b] border-transparent" :
+                                        meta.className === "leave" ? "bg-[#fceee7] text-[#a64d27] border-transparent" :
+                                        "bg-transparent text-slate-400 border-transparent"
+                                      }`}
+                                    >
+                                      <span className="block text-xs font-bold">{meta.code}</span>
+                                      <span className="block text-[9px] opacity-70">{meta.time}</span>
+                                    </button>
                                   </td>
                                 );
                               })}
-                              <td className="min-w-36 border-b border-slate-100 px-4 py-4 align-top">
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEdit(row)}
-                                    className="rounded-full border border-[#1A4F8A]/20 bg-white px-3 py-2 text-xs font-semibold text-[#1A4F8A] transition hover:border-[#1A4F8A]/35 hover:bg-[#1A4F8A]/6"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const id = pk ? row[pk] : null;
-                                      if (id !== null && id !== undefined) setDeletePrompt(String(id));
-                                    }}
-                                    className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </motion.tr>
+                            </tr>
                           );
                         })}
-                      </motion.tbody>
-                    </AnimatePresence>
-                  </table>
-                </div>
-              </div>
-            </div>
+                      </tbody>
+                    </table>
+                  </div>
 
-            {/* Right sidebar */}
-            <AnimatePresence mode="wait">
-              <motion.aside
-                key={activeTableName + "-aside"}
-                variants={TABLE_SWITCH}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className="space-y-6"
-              >
-                <div className="rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
-                  <h3 className="font-display text-2xl font-semibold text-slate-950">Schema map</h3>
-                  <p className="mt-1 text-sm text-slate-600">Outgoing and incoming relationships for the active table.</p>
-
-                  <div className="mt-4 space-y-3">
-                    <div className="rounded-[26px] border border-[#1A4F8A]/12 bg-[#1A4F8A]/5 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-[#1A4F8A]">Outgoing</p>
-                      <div className="mt-3 space-y-2">
-                        {outgoingRelations.length === 0 ? (
-                          <p className="text-sm text-slate-500">No outbound foreign keys.</p>
-                        ) : (
-                          outgoingRelations.map((rel) => (
-                            <div key={`${rel.column}-${rel.references_table}`} className="rounded-2xl bg-white/85 px-4 py-3 shadow-sm">
-                              <p className="text-sm font-medium text-slate-900">{formatLabel(rel.column)}</p>
-                              <p className="text-xs text-slate-500">{rel.references_table}.{rel.references_column}</p>
+                  {/* Coverage Grid */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-slate-900">Daily Coverage</p>
+                      <p className="text-xs text-slate-500">
+                        Required: {openingPolicy?.sanctioned_strength ?? 0} Opening, {closingPolicy?.sanctioned_strength ?? 0} Closing
+                        {(openingPolicy?.keyholder_required || closingPolicy?.keyholder_required) ? " + keyholder" : ""}
+                      </p>
+                    </div>
+                    <div className="mt-2 grid grid-cols-7 gap-2 overflow-x-auto">
+                      {rosterWeekDates.map((date) => {
+                        const counts = dailyCounts(date);
+                        const openingTarget = openingPolicy?.sanctioned_strength ?? 0;
+                        const closingTarget = closingPolicy?.sanctioned_strength ?? 0;
+                        return (
+                          <div key={date} className="rounded-2xl border border-slate-200 bg-white p-3">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{shortDay(date)} {dateNumber(date)}</p>
+                            <div className="mt-2 space-y-1 text-[11px]">
+                              <div className="flex justify-between"><span>Opening</span><strong className={counts.O >= openingTarget ? "text-[#2A7D5F]" : "text-red-600"}>{counts.O}/{openingTarget}</strong></div>
+                              <div className="flex justify-between"><span>Closing</span><strong className={counts.C >= closingTarget ? "text-[#2A7D5F]" : "text-red-600"}>{counts.C}/{closingTarget}</strong></div>
+                              <div className="flex justify-between"><span>Keyholders</span><strong className={counts.keyO + counts.keyC > 0 ? "text-[#2A7D5F]" : "text-red-600"}>{counts.keyO + counts.keyC}</strong></div>
+                              <div className="flex justify-between"><span>Off/Leave</span><strong>{counts.WO + counts.AL}</strong></div>
                             </div>
-                          ))
-                        )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Validation + Publish Panel */}
+                  <div className="grid gap-6 xl:grid-cols-[1fr_280px]">
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">Roster Validation</p>
+                      <p className="text-xs text-slate-500">The system checks the generated slots before publication.</p>
+                      <div className="mt-3 space-y-1">
+                        {validationResults().map((r) => (
+                          <div key={r.name} className={`flex items-center gap-3 border-b border-slate-100 py-3 text-sm ${
+                            r.level === "pass" ? "text-[#2A7D5F]" : r.level === "warning" ? "text-amber-600" : "text-red-600"
+                          }`}>
+                            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              {r.level === "pass" ? <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> :
+                               r.level === "warning" ? <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.072 16.5c-.77.833.192 2.5 1.732 2.5z" /> :
+                               <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                            </svg>
+                            <div className="flex-1">
+                              <p className="font-semibold">{r.name}</p>
+                              <p className="text-xs text-slate-500">{r.detail}</p>
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase ${
+                              r.level === "pass" ? "text-[#2A7D5F]" : r.level === "warning" ? "text-amber-600" : "text-red-600"
+                            }`}>{r.state}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-
-                    <div className="rounded-[26px] border border-[#2A7D5F]/12 bg-[#2A7D5F]/5 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.28em] text-[#2A7D5F]">Incoming</p>
-                      <div className="mt-3 space-y-2">
-                        {incomingRelations.length === 0 ? (
-                          <p className="text-sm text-slate-500">No inbound foreign keys.</p>
-                        ) : (
-                          incomingRelations.map((rel) => (
-                            <div key={`${rel.table_name}-${rel.column}`} className="rounded-2xl bg-white/85 px-4 py-3 shadow-sm">
-                              <p className="text-sm font-medium text-slate-900">{formatLabel(rel.table_name)}</p>
-                              <p className="text-xs text-slate-500">{formatLabel(rel.column)} → {rel.references_column}</p>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <h3 className="text-base font-bold text-slate-900">Ready to Publish?</h3>
+                      <p className="mt-2 text-xs text-slate-600">
+                        {rosterStatus === "published"
+                          ? "This version is published. Any further change must create a new audited version."
+                          : validationResults().filter((r) => r.level === "block").length
+                            ? `${validationResults().filter((r) => r.level === "block").length} blocking issue(s) must be resolved.`
+                            : "All validation checks pass. The Draft can be published."}
+                      </p>
+                      <button
+                        type="button"
+                        disabled={rosterStatus === "published" || validationResults().filter((r) => r.level === "block").length > 0}
+                        onClick={async () => {
+                          if (!rosterIdentity) { setNotice("No roster record to publish"); return; }
+                          try {
+                            const res = await fetch("/api/table-data?table=roster", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ recordId: String(rosterIdentity.roster_id ?? ""), roster_status: "published" }),
+                            });
+                            if (!res.ok) throw new Error("Publish failed");
+                            setRosterStatus("published");
+                            setNotice("Roster published successfully");
+                          } catch { setNotice("Failed to publish roster"); }
+                        }}
+                        className="mt-4 w-full rounded-full bg-[#2F6173] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#244d5c] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Publish Roster
+                      </button>
                     </div>
                   </div>
                 </div>
+              )}
 
-                <div className="rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
-                  <h3 className="font-display text-2xl font-semibold text-slate-950">Fields</h3>
-                  <p className="mt-1 text-sm text-slate-600">System-generated columns stay out of the editable form, while the rest are reflected here.</p>
-                  <div className="mt-4 space-y-3">
-                    {visibleColumns.map((col) => (
-                      <div key={col.column} className="rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
+              {/* ── Slots View ── */}
+              {rosterView === "slots" && (
+                <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                  <div className="overflow-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          {["Slot ID", "Roster ID", "Date", "Employee", "Shift Policy", "Assignment", "Status"].map((h) => (
+                            <th key={h} className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rosterWeekDates.flatMap((date) =>
+                          rosterLocationEmployees.map((emp) => {
+                            const assignment = getAssignment(emp.employee_id, date);
+                            if (!assignment) return null;
+                            const meta = syncedShiftMeta[assignment];
+                            const sMeta = rosterSlotMeta[`${emp.employee_id}|${date}`];
+                            return (
+                              <tr key={`${emp.employee_id}|${date}`} className="border-b border-slate-100 transition hover:bg-slate-50/50">
+                                <td className="px-4 py-3 text-slate-500">{sMeta?.slot_id || "—"}</td>
+                                <td className="px-4 py-3 text-slate-500">{rosterCode || "—"}</td>
+                                <td className="px-4 py-3 text-slate-900">{date}</td>
+                                <td className="px-4 py-3 text-slate-900">{emp.first_name} {emp.last_name}</td>
+                                <td className="px-4 py-3 text-slate-500">{meta?.policy || "—"}</td>
+                                <td className="px-4 py-3 text-slate-900">{meta?.label || assignment}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${sMeta?.preference_override ? "bg-amber-50 text-amber-700" : "bg-green-50 text-[#2A7D5F]"}`}>
+                                    {sMeta?.preference_override ? "Manual" : "Generated"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          }),
+                        )}
+                        {rosterWeekDates.flatMap((date) =>
+                          rosterLocationEmployees.map((emp) => getAssignment(emp.employee_id, date) ? null : null),
+                        ).length === 0 && rosterLocationEmployees.length > 0 && (
+                          <tr><td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">No roster slots for this week. Generate a roster first.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── History View ── */}
+              {rosterView === "history" && (
+                <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+                  <div className="overflow-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50">
+                          {["Time", "Version", "Action", "Changed By", "Reason"].map((h) => (
+                            <th key={h} className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rosterHistory.length === 0 ? (
+                          <tr><td colSpan={5} className="px-4 py-12 text-center text-sm text-slate-500">No history entries yet.</td></tr>
+                        ) : (
+                          rosterHistory.map((entry) => (
+                            <tr key={entry.history_id} className="border-b border-slate-100 transition hover:bg-slate-50/50">
+                              <td className="px-4 py-3 text-slate-500">{entry.created_at ? new Date(entry.created_at).toLocaleString("en-IN") : "—"}</td>
+                              <td className="px-4 py-3 text-slate-900">v{entry.version}</td>
+                              <td className="px-4 py-3 text-slate-900">{entry.action || "—"}</td>
+                              <td className="px-4 py-3 text-slate-500">{entry.changed_by || "—"}</td>
+                              <td className="px-4 py-3 text-slate-500">{entry.change_reason || "—"}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <header className="relative shrink-0 overflow-clip rounded-4xl border border-white/80 bg-white/70 p-6 shadow-[0_30px_90px_rgba(26,79,138,0.12)] backdrop-blur-2xl lg:p-8">
+                <div className="absolute right-6 top-6 h-24 w-24 rounded-full bg-[#FFD700]/15 blur-2xl" />
+                <div className="absolute bottom-0 right-1/3 h-36 w-36 rounded-full bg-[#2A7D5F]/12 blur-3xl" />
+
+                <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+                  <div className="max-w-3xl">
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={activeTableName + "-badge"}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.2 }}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#1A4F8A]/15 bg-[#1A4F8A]/6 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#1A4F8A]"
+                      >
+                        {snapshot.label || formatLabel(activeTableName)}
+                      </motion.p>
+                    </AnimatePresence>
+                    <h2 className="font-display mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+                      Indipet HRMS
+                    </h2>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => refreshTable().catch((e) => setError(e instanceof Error ? e.message : "Unable to refresh"))}
+                      className="rounded-full border border-[#1A4F8A]/20 bg-white px-5 py-3 text-sm font-semibold text-[#1A4F8A] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      Refresh table
+                    </button>
+                    {activeTableName === "employee_master" && (
+                      <button
+                        type="button"
+                        onClick={() => { setImportOpen(true); setImportResult(null); }}
+                        className="rounded-full bg-[#8B5CF6] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(139,92,246,0.25)] transition hover:-translate-y-0.5 hover:bg-[#7C3AED]"
+                      >
+                        Import Employees
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={openCreate}
+                      className="rounded-full bg-[#1A4F8A] px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(26,79,138,0.25)] transition hover:-translate-y-0.5 hover:bg-[#173f6b]"
+                    >
+                      New record
+                    </button>
+                  </div>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTableName + "-stats"}
+                    variants={TABLE_SWITCH}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+                  >
+                    {[
+                      { label: "Rows loaded",    value: snapshot.total,                                       accent: "#1A4F8A" },
+                      { label: "Visible fields", value: activeTable ? countVisibleFields(activeTable) : 0,    accent: "#2A7D5F" },
+                      { label: "Outgoing links", value: outgoingRelations.length,                             accent: "#FFD700" },
+                      { label: "Incoming links", value: incomingRelations.length,                             accent: "#FF6600" },
+                    ].map((card) => (
+                      <div key={card.label} className="rounded-[26px] border border-white/80 bg-white/75 p-5 shadow-sm">
+                        <div className="flex items-center justify-between gap-4">
                           <div>
-                            <p className="font-medium text-slate-950">{formatLabel(col.column)}</p>
-                            <p className="text-xs text-slate-500">{formatTypeLabel(col.type)}</p>
+                            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{card.label}</p>
+                            <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{card.value}</p>
                           </div>
-                          <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${col.nullable ? "bg-[#2A7D5F]/10 text-[#2A7D5F]" : "bg-[#FF6600]/10 text-[#FF6600]"}`}>
-                            {col.nullable ? "Optional" : "Required"}
-                          </span>
+                          <span className="h-10 w-10 rounded-2xl" style={{ backgroundColor: `${card.accent}22` }} />
                         </div>
-                        <p className="mt-2 text-xs text-slate-500">
-                          {col.default ? `Default: ${col.default}` : "No default value."}
-                        </p>
                       </div>
                     ))}
+                  </motion.div>
+                </AnimatePresence>
+              </header>
+
+              <section className="grid min-h-0 gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+
+                {/* Table records */}
+                <div className="min-h-0 min-w-0 overflow-hidden rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
+                  {/* ── top bar ── */}
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="font-display text-2xl font-semibold text-slate-950">Table records</h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {loading
+                          ? "Loading live records from Postgres..."
+                          : `Showing ${filteredRows.length} of ${snapshot.total} records.`}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* search */}
+                      <label className="flex items-center gap-3 rounded-full border border-white/75 bg-white px-4 py-2.5 shadow-sm">
+                        <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="6.5" cy="6.5" r="4.5"/><path d="m10.5 10.5 3 3" strokeLinecap="round"/></svg>
+                        <input
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Search all columns…"
+                          className="w-44 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                        />
+                        {search && (
+                          <button type="button" onClick={() => setSearch("")} className="text-slate-400 hover:text-slate-600">✕</button>
+                        )}
+                      </label>
+                      {/* filter toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setFilterOpen((o) => !o)}
+                        className={`flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
+                          filterOpen || filters.length > 0
+                            ? "border-[#1A4F8A]/30 bg-[#1A4F8A]/8 text-[#1A4F8A]"
+                            : "border-white/75 bg-white text-slate-600 hover:border-slate-200"
+                        }`}
+                      >
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 3h14M3.5 8h9M6 13h4" strokeLinecap="round"/></svg>
+                        Filters
+                        {filters.length > 0 && (
+                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#1A4F8A] text-[10px] font-bold text-white">
+                            {filters.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── filter builder panel ── */}
+                  <AnimatePresence initial={false}>
+                    {filterOpen && (
+                      <motion.div
+                        key="filter-panel"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto", transition: { duration: 0.24, ease: EASE_OUT } }}
+                        exit={{ opacity: 0, height: 0, transition: { duration: 0.16 } }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 rounded-3xl border border-[#1A4F8A]/12 bg-[#1A4F8A]/4 p-4">
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-[#1A4F8A]">Add filter rule</p>
+                          <div className="flex flex-wrap gap-2">
+                            {/* column */}
+                            <select
+                              value={draftCol}
+                              onChange={(e) => setDraftCol(e.target.value)}
+                              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer"
+                            >
+                              <option value="">Select column…</option>
+                              {visibleColumns.map((col) => (
+                                <option key={col.column} value={col.column}>{formatLabel(col.column)}</option>
+                              ))}
+                            </select>
+                            {/* operator */}
+                            <select
+                              value={draftOp}
+                              onChange={(e) => setDraftOp(e.target.value)}
+                              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 cursor-pointer"
+                            >
+                              {OPERATORS.map((op) => (
+                                <option key={op.value} value={op.value}>{op.label}</option>
+                              ))}
+                            </select>
+                            {/* value input (hidden for is_empty / is_not_empty) */}
+                            {!["is_empty", "is_not_empty"].includes(draftOp) && (
+                              <input
+                                value={draftVal}
+                                onChange={(e) => setDraftVal(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && addFilter()}
+                                placeholder="Value…"
+                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 w-36"
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={addFilter}
+                              disabled={!draftCol}
+                              className="rounded-2xl bg-[#1A4F8A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#173f6b] disabled:opacity-40"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* ── active filter chips ── */}
+                  <AnimatePresence>
+                    {filters.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.18 }}
+                        className="mt-3 flex flex-wrap items-center gap-2"
+                      >
+                        {filters.map((f) => (
+                          <span
+                            key={f.id}
+                            className="flex items-center gap-1.5 rounded-full border border-[#1A4F8A]/20 bg-[#1A4F8A]/8 px-3 py-1 text-xs font-medium text-[#1A4F8A]"
+                          >
+                            <span className="font-semibold">{formatLabel(f.column)}</span>
+                            <span className="opacity-70">{OPERATOR_LABEL[f.operator]}</span>
+                            {f.value && <span className="font-semibold">"{f.value}"</span>}
+                            <button
+                              type="button"
+                              onClick={() => removeFilter(f.id)}
+                              className="ml-0.5 rounded-full text-[#1A4F8A]/60 hover:text-[#1A4F8A] transition"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setFilters([])}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                        >
+                          Clear all
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <AnimatePresence>
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2 }}
+                        className="mt-4 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
+                      >
+                        {error}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <AnimatePresence>
+                    {notice && (
+                      <div className="pointer-events-none fixed right-4 top-4 z-50 flex justify-end">
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                          transition={{ duration: 0.16 }}
+                          className="rounded-2xl border border-emerald-200 bg-emerald-50/95 px-4 py-3 text-sm font-medium text-emerald-800 shadow-lg shadow-emerald-900/10 backdrop-blur"
+                        >
+                          {notice}
+                        </motion.div>
+                      </div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="mt-5 overflow-hidden rounded-[28px] border border-white/75 bg-white/80 shadow-inner">
+                    <div className="max-h-[calc(100vh-22rem)] w-full max-w-full overflow-auto">
+                      <table className="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
+                        <thead className="sticky top-0 z-10 bg-[#FFF9F0]/95 backdrop-blur">
+                          <tr>
+                            <th className="w-14 min-w-0 border-b border-slate-200 px-3 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">#</th>
+                            {tableColumns.map((col) => (
+                              <th key={col.column} className="min-w-40 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">
+                                <div className="flex items-center gap-2">
+                                  <span>{formatLabel(col.column)}</span>
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                                    {formatTypeLabel(col.type)}
+                                  </span>
+                                </div>
+                              </th>
+                            ))}
+                            <th className="min-w-36 border-b border-slate-200 px-4 py-4 text-[11px] uppercase tracking-[0.28em] text-slate-500">Actions</th>
+                          </tr>
+                        </thead>
+                        <AnimatePresence mode="wait">
+                          <motion.tbody
+                            key={activeTableName}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1, transition: { duration: 0.22, staggerChildren: 0.03 } }}
+                            exit={{ opacity: 0, transition: { duration: 0.14 } }}
+                          >
+                            {filteredRows.length === 0 && !loading ? (
+                              <tr>
+                                <td colSpan={tableColumns.length + 2} className="px-4 py-12 text-center text-sm text-slate-500">
+                                  No records found for this table.
+                                </td>
+                              </tr>
+                            ) : null}
+
+                            {filteredRows.map((row, index) => {
+                              const pk = snapshot.primaryKey ?? activeTable?.primary_key[0] ?? null;
+                              const rowId = pk ? String(row[pk]) : String(index);
+                              return (
+                                <motion.tr
+                                  key={rowId}
+                                  initial={{ opacity: 0, y: 6 }}
+                                  animate={{ opacity: 1, y: 0, transition: { delay: Math.min(index, 12) * 0.025, duration: 0.2 } }}
+                                  className="group border-b border-slate-100 transition hover:bg-[#FFF9F0]"
+                                >
+                                  <td className="w-14 min-w-0 border-b border-slate-100 px-3 py-4 text-center align-top text-xs text-slate-400">
+                                    {index + 1}
+                                  </td>
+                                  {tableColumns.map((col) => {
+                                    const fkLabel = fkLabelMap[col.column]?.[String(row[col.column] ?? "")];
+                                    const cellValue = col.column === "available_staff_count"
+                                      ? employeeCountMap[String(row.location_id ?? "")] ?? 0
+                                      : row[col.column];
+                                    const pkVal = pk ? row[pk] : null;
+                                    const rowId = pkVal !== null && pkVal !== undefined ? String(pkVal) : String(index);
+                                    const isPerm = activeTableName === "role_master" && col.column === "permissions";
+                                    const isExpanded = expandedPerms.has(rowId);
+                                    return (
+                                      <td key={col.column} className="min-w-40 max-w-[20rem] border-b border-slate-100 px-4 py-4 align-top text-slate-700">
+                                        {isPerm ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedPerms((prev) => {
+                                              const next = new Set(prev);
+                                              if (isExpanded) next.delete(rowId); else next.add(rowId);
+                                              return next;
+                                            })}
+                                            className="w-full cursor-pointer text-left font-mono text-xs leading-5 text-slate-600 hover:text-[#1A4F8A]"
+                                          >
+                                            {isExpanded
+                                              ? String(cellValue)
+                                              : String(cellValue).length > 60
+                                                ? String(cellValue).slice(0, 60) + "…"
+                                                : String(cellValue)}
+                                          </button>
+                                        ) : (
+                                          <div className="wrap-break-word">{fkLabel ?? formatCellValue(col, cellValue)}</div>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="min-w-36 border-b border-slate-100 px-4 py-4 align-top">
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => openEdit(row)}
+                                        className="rounded-full border border-[#1A4F8A]/20 bg-white px-3 py-2 text-xs font-semibold text-[#1A4F8A] transition hover:border-[#1A4F8A]/35 hover:bg-[#1A4F8A]/6"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const id = pk ? row[pk] : null;
+                                          if (id !== null && id !== undefined) setDeletePrompt(String(id));
+                                        }}
+                                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </td>
+                                </motion.tr>
+                              );
+                            })}
+                          </motion.tbody>
+                        </AnimatePresence>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </motion.aside>
-            </AnimatePresence>
-          </section>
+
+                {/* Right sidebar */}
+                <AnimatePresence mode="wait">
+                  <motion.aside
+                    key={activeTableName + "-aside"}
+                    variants={TABLE_SWITCH}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="space-y-6"
+                  >
+                    <div className="rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
+                      <h3 className="font-display text-2xl font-semibold text-slate-950">Schema map</h3>
+                      <p className="mt-1 text-sm text-slate-600">Outgoing and incoming relationships for the active table.</p>
+
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-[26px] border border-[#1A4F8A]/12 bg-[#1A4F8A]/5 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.28em] text-[#1A4F8A]">Outgoing</p>
+                          <div className="mt-3 space-y-2">
+                            {outgoingRelations.length === 0 ? (
+                              <p className="text-sm text-slate-500">No outbound foreign keys.</p>
+                            ) : (
+                              outgoingRelations.map((rel) => (
+                                <div key={`${rel.column}-${rel.references_table}`} className="rounded-2xl bg-white/85 px-4 py-3 shadow-sm">
+                                  <p className="text-sm font-medium text-slate-900">{formatLabel(rel.column)}</p>
+                                  <p className="text-xs text-slate-500">{rel.references_table}.{rel.references_column}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-[26px] border border-[#2A7D5F]/12 bg-[#2A7D5F]/5 p-4">
+                          <p className="text-[11px] uppercase tracking-[0.28em] text-[#2A7D5F]">Incoming</p>
+                          <div className="mt-3 space-y-2">
+                            {incomingRelations.length === 0 ? (
+                              <p className="text-sm text-slate-500">No inbound foreign keys.</p>
+                            ) : (
+                              incomingRelations.map((rel) => (
+                                <div key={`${rel.table_name}-${rel.column}`} className="rounded-2xl bg-white/85 px-4 py-3 shadow-sm">
+                                  <p className="text-sm font-medium text-slate-900">{formatLabel(rel.table_name)}</p>
+                                  <p className="text-xs text-slate-500">{formatLabel(rel.column)} → {rel.references_column}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-4xl border border-white/80 bg-white/72 p-5 shadow-[0_30px_90px_rgba(26,79,138,0.10)] backdrop-blur-2xl lg:p-6">
+                      <h3 className="font-display text-2xl font-semibold text-slate-950">Fields</h3>
+                      <p className="mt-1 text-sm text-slate-600">System-generated columns stay out of the editable form, while the rest are reflected here.</p>
+                      <div className="mt-4 space-y-3">
+                        {visibleColumns.map((col) => (
+                          <div key={col.column} className="rounded-3xl border border-white/80 bg-white/85 p-4 shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-slate-950">{formatLabel(col.column)}</p>
+                                <p className="text-xs text-slate-500">{formatTypeLabel(col.type)}</p>
+                              </div>
+                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] ${col.nullable ? "bg-[#2A7D5F]/10 text-[#2A7D5F]" : "bg-[#FF6600]/10 text-[#FF6600]"}`}>
+                                {col.nullable ? "Optional" : "Required"}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs text-slate-500">
+                              {col.default ? `Default: ${col.default}` : "No default value."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.aside>
+                </AnimatePresence>
+              </section>
+            </>
+          )}
         </main>
       </div>
 
@@ -2204,10 +3109,13 @@ export function AdminPortal() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="flex max-h-full w-full max-w-lg flex-col rounded-3xl border border-white/70 bg-white shadow-2xl"
+              className="flex max-h-full w-full max-w-2xl flex-col rounded-3xl border border-white/70 bg-white shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
-                <h2 className="text-lg font-bold text-slate-900">Generate Roster</h2>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1A4F8A]">Generate Draft Roster</p>
+                  <p className="text-sm text-slate-500 mt-1">The engine reads rules and creates editable Roster Slots.</p>
+                </div>
                 <button type="button" onClick={() => setGenerateOpen(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2216,55 +3124,92 @@ export function AdminPortal() {
               </div>
 
               <div className="flex flex-col gap-5 overflow-y-auto px-6 py-5">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-semibold text-slate-900">Location</span>
-                  <select
-                    value={genLocationId}
-                    onChange={(e) => { setGenLocationId(e.target.value); setGenShiftPolicyId(""); }}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
-                  >
-                    <option value="">— Select —</option>
-                    {Object.entries(genLocations).map(([id, name]) => (
-                      <option key={id} value={id}>{name}</option>
-                    ))}
-                  </select>
-                </label>
+                {/* Flow steps */}
+                <div className="flex gap-2 rounded-2xl bg-slate-50 p-2">
+                  {["Period", "Rules", "Availability", "Draft Slots"].map((step, i) => (
+                    <div key={step} className="flex flex-1 items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-[#2A7D5F] shadow-sm">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2A7D5F] text-white text-[9px]">{i + 1}</span>
+                      {step}
+                    </div>
+                  ))}
+                </div>
 
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-semibold text-slate-900">Shift Policy</span>
-                  <select
-                    value={genShiftPolicyId}
-                    onChange={(e) => setGenShiftPolicyId(e.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
-                  >
-                    <option value="">— Select —</option>
-                    {genShiftPolicies
-                      .filter((sp) => !genLocationId || sp.location_id === genLocationId)
-                      .map((sp) => (
-                        <option key={sp.value} value={sp.value}>{sp.label}</option>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Location</span>
+                    <select
+                      value={genLocationId}
+                      onChange={(e) => { setGenLocationId(e.target.value); setGenShiftPolicyId(""); }}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                    >
+                      <option value="">— Select —</option>
+                      {Object.entries(genLocations).map(([id, name]) => (
+                        <option key={id} value={id}>{name}</option>
                       ))}
-                  </select>
-                </label>
+                    </select>
+                  </label>
 
-                <div className="flex gap-4">
-                  <label className="flex flex-1 flex-col gap-1.5">
-                    <span className="text-sm font-semibold text-slate-900">Start Date</span>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Week Starts</span>
                     <input
                       type="date"
-                      value={genStartDate}
+                      value={genStartDate || rosterStartDate}
                       onChange={(e) => setGenStartDate(e.target.value)}
                       className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
                     />
                   </label>
-                  <label className="flex flex-1 flex-col gap-1.5">
-                    <span className="text-sm font-semibold text-slate-900">End Date</span>
-                    <input
-                      type="date"
-                      value={genEndDate}
-                      onChange={(e) => setGenEndDate(e.target.value)}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
-                    />
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Roster Cycle</span>
+                    <select defaultValue="weekly" className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10">
+                      <option value="weekly">Weekly</option>
+                    </select>
                   </label>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-slate-900">Generation Mode</span>
+                    <select
+                      value={genMode}
+                      onChange={(e) => setGenMode(e.target.value)}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                    >
+                      <option value="balanced">Balanced rotation</option>
+                      <option value="default">Prefer default shifts</option>
+                    </select>
+                  </label>
+                </div>
+
+                {/* Rule summary */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Opening Policy", value: openingPolicy ? `${openingPolicy.policy_code} - ${openingPolicy.shift_start_time}-${openingPolicy.shift_end_time}` : "—" },
+                    { label: "Closing Policy", value: closingPolicy ? `${closingPolicy.policy_code} - ${closingPolicy.shift_start_time}-${closingPolicy.shift_end_time}` : "—" },
+                    { label: "Weekly Off", value: openingPolicy?.weekly_off_pattern || "—" },
+                    { label: "Max Consecutive Days", value: openingPolicy ? `${openingPolicy.max_consecutive_days} days` : "—" },
+                    { label: "Keyholder", value: (openingPolicy?.keyholder_required || closingPolicy?.keyholder_required) ? "Required per shift" : "Not required" },
+                    { label: "Result", value: "Draft only" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl bg-slate-50 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{item.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Checks */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-[#2A7D5F]">
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>{activePoliciesForLocation.filter(p => p.policy_status === "Active").length} active Shift Policies found for the location</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-[#2A7D5F]">
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>{rosterLocationEmployees.length} active employees are eligible for roster planning</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-xs font-semibold text-[#2A7D5F]">
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>Leave, restrictions, skills and keyholder eligibility will be checked</span>
+                  </div>
                 </div>
               </div>
 
@@ -2278,17 +3223,19 @@ export function AdminPortal() {
                 </button>
                 <button
                   type="button"
-                  disabled={genSubmitting || !genLocationId || !genShiftPolicyId || !genStartDate || !genEndDate}
+                  disabled={genSubmitting || !genLocationId || !genStartDate || !rosterLocationEmployees.length}
                   onClick={async () => {
                     setGenSubmitting(true);
                     try {
-                      const start = new Date(genStartDate);
-                      const end = new Date(genEndDate);
-                      const selectedPolicy = genShiftPolicies.find((p) => p.value === genShiftPolicyId);
-                      const weeklyOffDay = selectedPolicy?.weekly_off_day ?? -1;
-                      let staffCount = 0;
+                      const start = genStartDate ? new Date(genStartDate) : new Date(rosterStartDate);
+                      const end = new Date(start);
+                      end.setDate(end.getDate() + 6);
+                      const startStr = start.toISOString().slice(0, 10);
+                      const endStr = end.toISOString().slice(0, 10);
                       const holidayDates = new Set<string>();
                       const existingDates = new Set<string>();
+
+                      const matchingEmployeeIds = new Set<string>();
 
                       await Promise.all([
                         fetch("/api/table-data?table=holiday_calendar&limit=500")
@@ -2297,41 +3244,40 @@ export function AdminPortal() {
                             for (const h of data.rows ?? []) {
                               if (String(h.location_id ?? "") === genLocationId) {
                                 const d = (h.holiday_date ?? "").slice(0, 10);
-                                if (d >= genStartDate && d <= genEndDate) holidayDates.add(d);
+                                if (d >= startStr && d <= endStr) holidayDates.add(d);
                               }
                             }
-                          }),
-                        fetch("/api/table-data?table=employee_master&limit=500")
-                          .then((r) => r.json())
-                          .then((data) => {
-                            staffCount = (data.rows ?? []).filter(
-                              (e: Record<string, unknown>) => String(e.location_id ?? "") === genLocationId,
-                            ).length;
                           }),
                         fetch("/api/table-data?table=roster&limit=500")
                           .then((r) => r.json())
                           .then((data) => {
                             for (const r of data.rows ?? []) {
-                              if (String(r.location_id ?? "") === genLocationId && String(r.shift_policy_id ?? "") === genShiftPolicyId) {
+                              if (String(r.location_id ?? "") === genLocationId) {
                                 existingDates.add((r.roster_date ?? "").slice(0, 10));
                               }
                             }
                           }),
                       ]);
 
+                      rosterLocationEmployees.forEach((emp) => matchingEmployeeIds.add(emp.employee_id));
+
                       let created = 0;
                       let skipped = 0;
+                      let slotsCreated = 0;
                       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                         const dateStr = d.toISOString().slice(0, 10);
                         if (existingDates.has(dateStr)) { skipped++; continue; }
                         const dow = d.getDay();
+                        const shiftCategory = genMode === "default" ? (rosterLocationEmployees.indexOf(rosterLocationEmployees[0]) % 2 === 0 ? "opening" : "closing") : "opening";
+                        const policy = activePoliciesForLocation.find((p) => p.shift_category === shiftCategory);
+                        if (!policy) { skipped++; continue; }
                         const body = {
                           location_id: genLocationId,
-                          shift_policy_id: genShiftPolicyId,
+                          shift_policy_id: policy.policy_id,
                           roster_date: dateStr,
                           is_holiday: holidayDates.has(dateStr),
-                          is_weekly_off: weeklyOffDay >= 0 && dow === weeklyOffDay,
-                          available_staff_count: staffCount,
+                          is_weekly_off: policy.weekly_off_day >= 0 && dow === policy.weekly_off_day,
+                          available_staff_count: rosterLocationEmployees.length,
                           scenario: "standard",
                           roster_status: "draft",
                           version: 1,
@@ -2341,12 +3287,65 @@ export function AdminPortal() {
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify(body),
                         });
-                        if (res.ok) created++;
-                        else { skipped++; }
+                        if (res.ok) {
+                          created++;
+                          const result = await res.json() as { row: Record<string, unknown> };
+                          const rosterId = String(result.row?.roster_id ?? "");
+                          if (rosterId) {
+                            await Promise.all(
+                              Array.from(matchingEmployeeIds).map((empId) => {
+                                const emp = rosterLocationEmployees.find((e) => e.employee_id === empId);
+                                const prefDay = emp?.preferred_weekly_off_day;
+                                const isPreferredOff = prefDay && Number(prefDay) % 7 === dow;
+                                if (isPreferredOff) {
+                                  return fetch("/api/table-data?table=roster_slots", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      roster_id: rosterId,
+                                      employee_id: empId,
+                                      slot_type: "WO",
+                                      preference_applied: true,
+                                      slot_status: "scheduled",
+                                    }),
+                                  }).then((sr) => { if (sr.ok) slotsCreated++; });
+                                }
+                                const isEven = rosterLocationEmployees.findIndex((e) => e.employee_id === empId) % 2 === 0;
+                                const slotType = genMode === "default"
+                                  ? policy.shift_category
+                                  : isEven ? "O" : "C";
+                                const slotStart = isEven
+                                  ? (openingPolicy?.shift_start_time ?? policy.shift_start_time)
+                                  : (closingPolicy?.shift_start_time ?? policy.shift_start_time);
+                                const slotEnd = isEven
+                                  ? (openingPolicy?.shift_end_time ?? policy.shift_end_time)
+                                  : (closingPolicy?.shift_end_time ?? policy.shift_end_time);
+                                return fetch("/api/table-data?table=roster_slots", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    roster_id: rosterId,
+                                    employee_id: empId,
+                                    slot_type: slotType,
+                                    slot_start: slotStart,
+                                    slot_end: slotEnd,
+                                    preference_applied: true,
+                                    slot_status: "scheduled",
+                                  }),
+                                }).then((sr) => { if (sr.ok) slotsCreated++; });
+                              }),
+                            );
+                          }
+                        } else { skipped++; }
                       }
                       setGenerateOpen(false);
-                      if (created > 0) await refreshTable();
-                      setNotice(`${created} roster record(s) created, ${skipped} skipped.`);
+                      if (created > 0) {
+                        setRosterStartDate(startStr);
+                        setRosterRefreshKey((k) => k + 1);
+                        setNotice(`${created} roster record(s) created, ${slotsCreated} slot(s) auto-assigned.`);
+                      } else {
+                        setNotice("No new roster records created.");
+                      }
                       setGenSubmitting(false);
                     } catch {
                       setGenSubmitting(false);
@@ -2354,7 +3353,127 @@ export function AdminPortal() {
                   }}
                   className="rounded-full bg-[#2A7D5F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f6a4e] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {genSubmitting ? "Generating..." : "Generate"}
+                  {genSubmitting ? "Generating..." : "Generate Draft"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Slot Edit Modal ──────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {slotEditOpen && slotEditTarget && (
+          <motion.div
+            key="slot-overlay"
+            variants={MODAL_OVERLAY}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/20 px-4 py-6 backdrop-blur-sm"
+          >
+            <motion.div
+              key="slot-card"
+              variants={MODAL_CARD}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="flex max-h-full w-full max-w-md flex-col rounded-3xl border border-white/70 bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#1A4F8A]">Edit Roster Slot</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {rosterLocationEmployees.find((e) => e.employee_id === slotEditTarget.employeeId)?.first_name} {rosterLocationEmployees.find((e) => e.employee_id === slotEditTarget.employeeId)?.last_name} · {displayDate(slotEditTarget.date)}
+                  </p>
+                </div>
+                <button type="button" onClick={() => { setSlotEditOpen(false); setSlotEditTarget(null); }} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-5 px-6 py-5">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-slate-900">Assignment</span>
+                  <select
+                    value={slotEditAssignment}
+                    onChange={(e) => setSlotEditAssignment(e.target.value)}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10"
+                  >
+                    {openingPolicy && <option value="O">Opening · {openingPolicy.policy_code} · {openingPolicy.shift_start_time}-{openingPolicy.shift_end_time}</option>}
+                    {closingPolicy && <option value="C">Closing · {closingPolicy.policy_code} · {closingPolicy.shift_start_time}-{closingPolicy.shift_end_time}</option>}
+                    <option value="WO">Weekly Off</option>
+                    <option value="AL">Approved Leave</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-sm font-semibold text-slate-900">Change Reason</span>
+                  <textarea
+                    value={slotEditReason}
+                    onChange={(e) => setSlotEditReason(e.target.value)}
+                    placeholder="Required for a manual roster change."
+                    rows={3}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#1A4F8A] focus:ring-2 focus:ring-[#1A4F8A]/10 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => { setSlotEditOpen(false); setSlotEditTarget(null); }}
+                  className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!slotEditReason.trim()}
+                  onClick={async () => {
+                    const { employeeId, date } = slotEditTarget!;
+                    const prevAssignment = getAssignment(employeeId, date);
+                    const prevMeta = rosterSlotMeta[`${employeeId}|${date}`];
+
+                    try {
+                      if (prevMeta?.slot_id) {
+                        await fetch("/api/table-data?table=roster_slots", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            recordId: prevMeta.slot_id,
+                            slot_type: slotEditAssignment,
+                            preference_override: true,
+                          }),
+                        });
+                      }
+                      if (rosterIdentity) {
+                        await fetch("/api/table-data?table=roster_history", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            roster_id: String(rosterIdentity.roster_id ?? ""),
+                            location_id: rosterLocationId,
+                            roster_date: date,
+                            version: rosterVersion,
+                            action: "Roster slot changed",
+                            changed_by: "HR Admin",
+                            change_reason: `${rosterLocationEmployees.find((e) => e.employee_id === employeeId)?.first_name} ${rosterLocationEmployees.find((e) => e.employee_id === employeeId)?.last_name}: ${prevAssignment || "—"} to ${slotEditAssignment}. ${slotEditReason}`,
+                          }),
+                        });
+                      }
+                      setRosterSlots((prev) => ({ ...prev, [`${employeeId}|${date}`]: slotEditAssignment }));
+                      setNotice("Roster slot updated and logged");
+                    } catch {
+                      setNotice("Failed to update roster slot");
+                    }
+                    setSlotEditOpen(false);
+                    setSlotEditTarget(null);
+                  }}
+                  className="rounded-full bg-[#2A7D5F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1f6a4e] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Save Change
                 </button>
               </div>
             </motion.div>
@@ -2750,7 +3869,7 @@ export function AdminPortal() {
                       : (column.column === "city" && !selectedStateCode ? "Select a state first" : "— Select —");
 
                     const staticOpts   = STATIC_ENUM_OPTIONS[column.column];
-                    const hasStaticOpts = !isFkColumn && !useGeoSelect && Array.isArray(staticOpts) && staticOpts.length > 0 && kind === "text";
+                    const hasStaticOpts = !isFkColumn && !useGeoSelect && Array.isArray(staticOpts) && staticOpts.length > 0 && (kind === "text" || column.column === "preferred_weekly_off_day");
 
                     return (
                       <motion.label
@@ -2953,7 +4072,9 @@ export function AdminPortal() {
                             </option>
                             {(activeTableName === "employee_transfer_history" && column.column === "to_location_id"
                               ? (fkOpts ?? []).filter((opt) => opt.value !== String(formState.from_location_id ?? ""))
-                              : fkOpts
+                              : activeTableName === "shift_policy_master" && column.column === "backup_keyholder_id"
+                                ? (fkOpts ?? []).filter((opt) => opt.value !== String(formState.primary_keyholder_id ?? ""))
+                                : fkOpts
                             )?.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </select>
                           ) : useGeoSelect ? (
@@ -2964,13 +4085,13 @@ export function AdminPortal() {
                         ) : hasStaticOpts ? (
                           <select value={String(inputValue)} disabled={readOnly || isLockedBySameAddress} onChange={(e) => updateForm(column.column, e.target.value)} className={selectClass}>
                             <option value="">— Select —</option>
-                            {staticOpts.map((opt) => <option key={opt} value={opt}>{formatLabel(opt)}</option>)}
+                            {staticOpts.map((opt) => <option key={opt} value={opt}>{column.column === "preferred_weekly_off_day" ? (WEEKDAY_LABELS[opt] ?? opt) : formatLabel(opt)}</option>)}
                           </select>
                         ) : (
                           <input
                             type={kind === "datetime" ? "datetime-local" : kind === "date" ? "date" : kind === "time" ? "time" : kind === "number" ? "number" : "text"}
                             value={String(inputValue)}
-                            readOnly={readOnly || isLockedBySameAddress}
+                            readOnly={readOnly || isLockedBySameAddress || (activeTableName === "shift_policy_master" && column.column === "weekly_off_day" && String(formState.weekly_off_pattern ?? "") === "rotational")}
                             onChange={(e) => {
                               const nextValue = isDepartmentShortCode ? normalizeDepartmentShortCode(e.target.value) : e.target.value;
                               updateForm(column.column, toInputValue(column, nextValue));
@@ -2986,7 +4107,9 @@ export function AdminPortal() {
                           {column.nullable ? "Optional field." : "Required field."}
                           {isDepartmentShortCode ? " Enter exactly 3 uppercase letters." : ""}
                           {isLockedBySameAddress ? " Mirrors the present address while Same Address is enabled." : ""}
-                          {readOnly ? " Auto-generated by the database." : ""}
+                          {readOnly && !isLockedBySameAddress ? " Auto-generated by the database." : ""}
+                          {activeTableName === "shift_policy_master" && column.column === "weekly_off_day" && String(formState.weekly_off_pattern ?? "") === "rotational" ? " Not applicable for Rotational weekly off." : ""}
+                          {activeTableName === "shift_policy_master" && (column.column === "total_shift_hours" || column.column === "net_work_hours") ? " Calculated from shift timing and break." : ""}
                         </p>
                       </motion.label>
                     );

@@ -473,6 +473,10 @@ export async function listEmployeeLookupRows(purpose: string, limit = 500, offse
     whereClause += ` and ${quoteIdentifier("is_reporting_manager")} = true`;
   }
 
+  if (purpose === "keyholder") {
+    whereClause += ` and exists (select 1 from ${quoteIdentifier("designation_master")} dm where dm.${quoteIdentifier("designation_id")} = ${quoteIdentifier("employee_master")}.${quoteIdentifier("designation_id")} and dm.${quoteIdentifier("is_keyholder_eligible")} = true)`;
+  }
+
   if (locationId) {
     whereClause += ` and ${quoteIdentifier("location_id")} = $${params.length + 1}`;
     params.push(locationId);
